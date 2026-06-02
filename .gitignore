@@ -5,3 +5,11 @@
 tags
 node_modules
 __pycache__
+# secrets / keys - never commit
+2006
+2006.pub
+*.pem
+*.key
+id_ed25519
+id_rsa
+*.ppk
