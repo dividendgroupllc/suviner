@@ -3,7 +3,7 @@
 
 // Konvertatsiya/peremeshenie uchun mode of payment turi NOMI bilan emas,
 // ulangan cash account valyutasi bilan aniqlanadi (server query orqali).
-const DIVIDEND_PARTY_TYPES = ["Дивиденд", "Дивиденд 1", "Дивиденд 2", "Дивиденд 3"];
+const DIVIDEND_PARTY_TYPES = ["Дивиденд", "Дивиденд 1"];
 
 frappe.ui.form.on("Kassa", {
     onload: function(frm) {

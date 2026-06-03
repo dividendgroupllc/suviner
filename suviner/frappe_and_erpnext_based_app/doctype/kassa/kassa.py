@@ -13,8 +13,6 @@ CONVERSION_CURRENCIES = ("UZS", "USD")
 DIVIDEND_ACCOUNT_NUMBERS = {
     "Дивиденд": "3200",
     "Дивиденд 1": "3200",
-    "Дивиденд 2": "3201",
-    "Дивиденд 3": "3202",
 }
 EXPENSE_PARENT_ACCOUNT_NUMBER = "5200"
 

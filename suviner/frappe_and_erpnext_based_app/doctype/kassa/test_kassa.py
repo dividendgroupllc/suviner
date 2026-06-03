@@ -121,8 +121,6 @@ class UnitTestKassa(FrappeTestCase):
         cases = [
             ("Расход", "Расходы", "create_expense_journal_entry"),
             ("Расход", "Дивиденд 1", "create_dividend_journal_entry"),
-            ("Расход", "Дивиденд 2", "create_dividend_journal_entry"),
-            ("Расход", "Дивиденд 3", "create_dividend_journal_entry"),
             ("Перемещения", "", "create_transfer_payment_entry"),
             ("Конвертация", "", "create_conversion_payment_entry"),
         ]
