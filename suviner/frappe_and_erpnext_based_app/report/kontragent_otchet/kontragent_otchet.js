@@ -36,8 +36,11 @@ frappe.query_reports["Kontragent Otchet"] = {
         {
             "fieldname": "currency",
             "label": __("Валюта"),
-            "fieldtype": "Select",
-            "options": "\nUZS\nUSD",
+            "fieldtype": "Link",
+            "options": "Currency",
+            "get_query": function() {
+                return { filters: { enabled: 1 } };
+            },
             "default": ""
         }
     ],
