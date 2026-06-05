@@ -96,13 +96,6 @@ frappe.ui.form.on("Kassa", {
                         frm.set_value("cash_account", r.message.account);
                         frm.set_value("cash_account_currency", r.message.currency);
 
-                        // Konvertatsiya faqat UZS/USD account valyutasida ishlaydi.
-                        if (frm.doc.transaction_type === "Конвертация"
-                            && r.message.currency
-                            && !["UZS", "USD"].includes(r.message.currency)) {
-                            frappe.msgprint(__("Для конвертации выберите способ оплаты в UZS или USD."));
-                        }
-
                         frm.trigger("update_balance");
                         frm.trigger("sync_currency_fields");
                         frm.trigger("update_exchange_fields");

@@ -7,9 +7,9 @@ from frappe.model.document import Document
 from frappe.utils import cint, flt
 from erpnext.accounts.party import get_party_account as erpnext_get_party_account
 
-# Konvertatsiya faqat shu valyutalar juftligida (UZS ↔ USD) amalga oshiriladi.
+# Konvertatsiya valyutalari turlicha bo'lgan har qanday enabled valyuta
+# juftligida amalga oshiriladi (UZS, USD, SAR, CNY, AED, ...). Yo'nalish
 # Mode of Payment turi nomidan EMAS, ulangan cash account valyutasidan aniqlanadi.
-CONVERSION_CURRENCIES = ("UZS", "USD")
 DIVIDEND_ACCOUNT_NUMBERS = {
     "Дивиденд": "3200",
     "Дивиденд 1": "3200",
@@ -575,9 +575,6 @@ class Kassa(Document):
         if not from_currency or not to_currency:
             frappe.throw(_("Не удалось определить валюту счетов для конвертации"))
 
-        if from_currency not in CONVERSION_CURRENCIES or to_currency not in CONVERSION_CURRENCIES:
-            frappe.throw(_("Для конвертации выберите счета в UZS или USD"))
-
         if from_currency == to_currency:
             frappe.throw(
                 _("Для конвертации способы оплаты должны иметь разные валюты")
@@ -690,12 +687,13 @@ def get_source_mode_currency(company, source_mode_of_payment):
 
 
 def get_conversion_mode_of_payments(company, source_mode_of_payment=None):
-    """Konvertatsiya uchun mos mode of payment'lar (UZS/USD, account valyutasi bo'yicha).
+    """Konvertatsiya uchun mos mode of payment'lar (account valyutasi bo'yicha).
 
     ``source_mode_of_payment`` berilganda faqat undan FARQLI valyutadagi
-    (qarama-qarshi tomon) usullar qaytariladi — manba USD bo'lsa UZS, aksincha.
+    (qarama-qarshi tomon) usullar qaytariladi — manba qaysi valyuta bo'lsa,
+    undan boshqa har qanday enabled valyutadagi kassalar chiqadi.
     """
-    rows = get_cash_mode_of_payment_currencies(company, CONVERSION_CURRENCIES)
+    rows = get_cash_mode_of_payment_currencies(company)
     source_currency = get_source_mode_currency(company, source_mode_of_payment)
 
     result = []
