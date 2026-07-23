@@ -43,7 +43,7 @@ app_license = "mit"
 # page_js = {"page" : "public/js/file.js"}
 
 # include js in doctype views
-# doctype_js = {"doctype" : "public/js/doctype.js"}
+doctype_js = {"Purchase Invoice": "public/js/purchase_invoice.js"}
 # doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
 # doctype_calendar_js = {"doctype" : "public/js/doctype_calendar.js"}
@@ -83,7 +83,7 @@ app_license = "mit"
 # ------------
 
 # before_install = "suviner.install.before_install"
-# after_install = "suviner.install.after_install"
+after_install = "suviner.custom.purchase_invoice_dop_rasxod.execute"
 
 # Uninstallation
 # ------------
@@ -144,6 +144,14 @@ app_license = "mit"
 # 		"on_trash": "method"
 # 	}
 # }
+
+doc_events = {
+	"Purchase Invoice": {
+		"validate": "suviner.overrides.purchase_invoice.validate",
+		"on_submit": "suviner.overrides.purchase_invoice.on_submit",
+		"on_cancel": "suviner.overrides.purchase_invoice.on_cancel",
+	}
+}
 
 # Scheduled Tasks
 # ---------------
