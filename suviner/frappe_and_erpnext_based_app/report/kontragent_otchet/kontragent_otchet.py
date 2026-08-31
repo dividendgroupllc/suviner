@@ -237,7 +237,7 @@ def calculate_opening_balance(party_type, party, from_date, currency):
           AND is_cancelled = 0
           AND voucher_no IN (
               SELECT name FROM `tabJournal Entry`
-              WHERE voucher_type = 'Journal Entry'
+              WHERE voucher_type != 'Opening Entry'
           )
     """, (from_date, party_type, party, currency))[0][0] or 0
 
@@ -312,7 +312,7 @@ def calculate_opening_balance(party_type, party, from_date, currency):
           AND is_cancelled = 0
           AND voucher_no IN (
               SELECT name FROM `tabJournal Entry`
-              WHERE voucher_type = 'Journal Entry'
+              WHERE voucher_type != 'Opening Entry'
           )
     """, (from_date, party_type, party, currency))[0][0] or 0
 
@@ -401,7 +401,7 @@ def calculate_period_balance(party_type, party, from_date, to_date, currency):
           AND is_cancelled = 0
           AND voucher_no IN (
               SELECT name FROM `tabJournal Entry`
-              WHERE voucher_type = 'Journal Entry'
+              WHERE voucher_type != 'Opening Entry'
           )
     """, (from_date, to_date, party_type, party, currency))[0][0] or 0
 
@@ -481,7 +481,7 @@ def calculate_period_balance(party_type, party, from_date, to_date, currency):
           AND is_cancelled = 0
           AND voucher_no IN (
               SELECT name FROM `tabJournal Entry`
-              WHERE voucher_type = 'Journal Entry'
+              WHERE voucher_type != 'Opening Entry'
           )
     """, (from_date, to_date, party_type, party, currency))[0][0] or 0
 

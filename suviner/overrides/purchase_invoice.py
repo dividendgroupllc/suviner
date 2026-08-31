@@ -86,7 +86,17 @@ def create_landed_cost_voucher(doc):
 	lcv = frappe.new_doc("Landed Cost Voucher")
 	lcv.company = doc.company
 	lcv.posting_date = doc.posting_date
-	lcv.distribute_charges_based_on = doc.get("custom_distribute_charges_based_on") or "Amount"
+	basis = doc.get("custom_distribute_charges_based_on") or "Amount"
+	if basis == "Distribute Manually":
+		# 2026-08-31 audit: avto-LCV qo'lda taqsimlay olmaydi (har item uchun
+		# applicable_charges to'ldirilmaydi) — ilgari bu holatda LCV submit
+		# throw qilib PI ni butunlay bloklardi. Amount bo'yicha taqsimlaymiz.
+		frappe.msgprint(
+			_("'Distribute Manually' avto-taqsimotda qo'llab-quvvatlanmaydi — 'Amount' bo'yicha taqsimlandi."),
+			alert=True,
+		)
+		basis = "Amount"
+	lcv.distribute_charges_based_on = basis
 
 	lcv.append(
 		"purchase_receipts",

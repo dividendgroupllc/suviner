@@ -141,15 +141,34 @@ class Kassa(Document):
             return erpnext_get_party_account(self.party_type, self.party, self.company)
 
         if self.party_type == "Employee":
-            payable_account = frappe.db.get_value(
-                "Account",
-                {
-                    "company": self.company,
-                    "account_type": "Payable",
-                    "is_group": 0,
-                },
-                "name",
+            # 2026-08-31 audit: ilgari DUCH KELGAN birinchi Payable olinardi
+            # (valyuta/tur filtrisiz). Endi ustuvorlik: kompaniyaning payroll
+            # payable defaulti → hujjat/partiya valyutasiga mos Payable →
+            # oxirgi zaxira sifatida istalgan Payable.
+            payable_account = frappe.get_cached_value(
+                "Company", self.company, "default_payroll_payable_account"
             )
+            if not payable_account:
+                doc_currency = (
+                    self.get("party_currency")
+                    or frappe.get_cached_value("Company", self.company, "default_currency")
+                )
+                payable_account = frappe.db.get_value(
+                    "Account",
+                    {
+                        "company": self.company,
+                        "account_type": "Payable",
+                        "is_group": 0,
+                        "account_currency": doc_currency,
+                    },
+                    "name",
+                )
+            if not payable_account:
+                payable_account = frappe.db.get_value(
+                    "Account",
+                    {"company": self.company, "account_type": "Payable", "is_group": 0},
+                    "name",
+                )
             if payable_account:
                 return payable_account
 

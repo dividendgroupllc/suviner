@@ -265,6 +265,15 @@ def get_data(filters):
 
     balance = opening_balance  # Balance party valyutasida
 
+    # DIQQAT (2026-08-31 audit tuzatmasi): bitta invoys partiya hisobiga
+    # BIR NECHTA GL qatori yozishi mumkin (POS chekda sotuv-debit + to'lov-
+    # kredit; PI'da avans allotsatsiyasi). Ilgari har qator uchun invoys
+    # itemlari summasi QAYTA ayirilib, POS to'lovi umuman ko'rinmasdi —
+    # bitta to'langan chek balansni 2x buzardi. Endi: balans DOIM GL
+    # qatorining o'z credit-debit'idan yuradi, tovar-tafsilot esa har
+    # voucher uchun faqat BIR marta (asosiy yo'nalishdagi qatorda) chiqadi.
+    rendered_item_vouchers = set()
+
     # Har bir entry uchun detail ma'lumotlarni olish
     for entry in all_entries:
         voucher_type = entry.get('voucher_type')
@@ -293,36 +302,17 @@ def get_data(filters):
         
         # Purchase Invoice uchun item details
         if voucher_type == "Purchase Invoice":
-            items = get_purchase_invoice_items(voucher_no)
+            # Balans — GL qatorining O'Z summasidan (invoys-item yig'indisi
+            # emas: soliq/chegirma/valyutada farq qiladi va ko'p-qatorli
+            # holatda ikki marta hisoblanardi).
+            balance += flt(gl.credit) - flt(gl.debit)
+
+            # Tovar-tafsilot faqat asosiy (kredit) qatorda, bir marta
+            is_main_row = flt(gl.credit) > 0 and voucher_no not in rendered_item_vouchers
+            items = get_purchase_invoice_items(voucher_no) if is_main_row else []
             if items:
-                total_credit = sum(flt(item.get('credit', 0)) for item in items)
-                balance += total_credit  # Credit - bizning qarzimiz oshadi
-
+                rendered_item_vouchers.add(voucher_no)
                 parent_row_id = f"{voucher_type}:{voucher_no}"
-                data.append({
-                    "posting_date": gl.posting_date,
-                    "voucher_type": voucher_type,
-                    "voucher_no": voucher_no,
-                    "item_name": "",
-                    "qty": None,
-                    "rate": None,
-                    "currency": gl.currency,
-                    "credit": total_credit,
-                    "debit": 0,
-                    "balance": format_balance(balance),
-                    "indent": 0,
-                    "row_id": parent_row_id,
-                    "has_item_details": 1,
-                    "item_count": len(items),
-                })
-
-                for item in items:
-                    child_row = make_invoice_item_row(gl, item)
-                    child_row["parent_row_id"] = parent_row_id
-                    data.append(child_row)
-            else:
-                # Agar item topilmasa, faqat GL entry ko'rsatish
-                balance += flt(gl.credit)  # Credit oshadi
                 data.append({
                     "posting_date": gl.posting_date,
                     "voucher_type": voucher_type,
@@ -332,28 +322,7 @@ def get_data(filters):
                     "rate": None,
                     "currency": gl.currency,
                     "credit": gl.credit,
-                    "debit": 0,
-                    "balance": format_balance(balance),
-                })
-        
-        # Sales Invoice uchun item details
-        elif voucher_type == "Sales Invoice":
-            items = get_sales_invoice_items(voucher_no)
-            if items:
-                total_debit = sum(flt(item.get('debit', 0)) for item in items)
-                balance -= total_debit  # Debit - to'lov qildik, qarz kamayadi
-
-                parent_row_id = f"{voucher_type}:{voucher_no}"
-                data.append({
-                    "posting_date": gl.posting_date,
-                    "voucher_type": voucher_type,
-                    "voucher_no": voucher_no,
-                    "item_name": "",
-                    "qty": None,
-                    "rate": None,
-                    "currency": gl.currency,
-                    "credit": 0,
-                    "debit": total_debit,
+                    "debit": gl.debit,
                     "balance": format_balance(balance),
                     "indent": 0,
                     "row_id": parent_row_id,
@@ -366,7 +335,8 @@ def get_data(filters):
                     child_row["parent_row_id"] = parent_row_id
                     data.append(child_row)
             else:
-                balance -= flt(gl.debit)  # Debit kamayadi
+                # Qo'shimcha qator (masalan avans allotsatsiyasi) yoki
+                # itemsiz hujjat — oddiy GL qator sifatida
                 data.append({
                     "posting_date": gl.posting_date,
                     "voucher_type": voucher_type,
@@ -375,7 +345,55 @@ def get_data(filters):
                     "qty": None,
                     "rate": None,
                     "currency": gl.currency,
-                    "credit": 0,
+                    "credit": gl.credit,
+                    "debit": gl.debit,
+                    "balance": format_balance(balance),
+                })
+        
+        # Sales Invoice uchun item details
+        elif voucher_type == "Sales Invoice":
+            # Balans — GL qatorining O'Z summasidan. POS chekda ikkinchi
+            # qator (to'lov-kredit) shu yerda to'g'ri qo'shiladi — ilgari
+            # u ham item-yig'indi sifatida QAYTA ayirilib ketardi.
+            balance += flt(gl.credit) - flt(gl.debit)
+
+            is_main_row = flt(gl.debit) > 0 and voucher_no not in rendered_item_vouchers
+            items = get_sales_invoice_items(voucher_no) if is_main_row else []
+            if items:
+                rendered_item_vouchers.add(voucher_no)
+                parent_row_id = f"{voucher_type}:{voucher_no}"
+                data.append({
+                    "posting_date": gl.posting_date,
+                    "voucher_type": voucher_type,
+                    "voucher_no": voucher_no,
+                    "item_name": "",
+                    "qty": None,
+                    "rate": None,
+                    "currency": gl.currency,
+                    "credit": gl.credit,
+                    "debit": gl.debit,
+                    "balance": format_balance(balance),
+                    "indent": 0,
+                    "row_id": parent_row_id,
+                    "has_item_details": 1,
+                    "item_count": len(items),
+                })
+
+                for item in items:
+                    child_row = make_invoice_item_row(gl, item)
+                    child_row["parent_row_id"] = parent_row_id
+                    data.append(child_row)
+            else:
+                # POS to'lov-kredit qatori yoki itemsiz hujjat
+                data.append({
+                    "posting_date": gl.posting_date,
+                    "voucher_type": voucher_type,
+                    "voucher_no": voucher_no,
+                    "item_name": "",
+                    "qty": None,
+                    "rate": None,
+                    "currency": gl.currency,
+                    "credit": gl.credit,
                     "debit": gl.debit,
                     "balance": format_balance(balance),
                 })
