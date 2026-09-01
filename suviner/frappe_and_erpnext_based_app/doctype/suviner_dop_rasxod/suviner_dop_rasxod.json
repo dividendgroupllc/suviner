@@ -9,6 +9,7 @@
   "supplier",
   "description",
   "expense_account",
+  "distribute_based_on",
   "column_break_1",
   "currency",
   "amount",
@@ -40,6 +41,15 @@
    "label": "Счет расходов",
    "options": "Account",
    "reqd": 1
+  },
+  {
+   "columns": 1,
+   "fieldname": "distribute_based_on",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Распределение",
+   "options": "\nQty\nAmount\nKg",
+   "description": "Бўш = умумий усул (тепадаги «по умолчанию»). Kg — Кг (за ед.) × Кол-во бўйича."
   },
   {
    "fieldname": "column_break_1",
@@ -81,7 +91,7 @@
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-06-22 10:00:00.000000",
+ "modified": "2026-09-01 10:00:00.000000",
  "modified_by": "Administrator",
  "module": "Frappe and Erpnext based app",
  "name": "Suviner Dop Rasxod",

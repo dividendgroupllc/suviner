@@ -8,14 +8,14 @@
  "doctype": "Report",
  "filters": [],
  "is_standard": "Yes",
- "modified": "2026-07-26 00:00:00.000000",
+ "modified": "2026-09-01 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "Frappe and Erpnext based app",
- "name": "Sebestoimost Tovara",
+ "name": "Tannarx Shakllanishi",
  "owner": "Administrator",
  "prepared_report": 0,
  "ref_doctype": "Purchase Invoice",
- "report_name": "Sebestoimost Tovara",
+ "report_name": "Tannarx Shakllanishi",
  "report_type": "Script Report",
  "roles": [
   {

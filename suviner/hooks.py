@@ -149,7 +149,10 @@ doc_events = {
 	"Purchase Invoice": {
 		"validate": "suviner.overrides.purchase_invoice.validate",
 		"on_submit": "suviner.overrides.purchase_invoice.on_submit",
-		"on_cancel": "suviner.overrides.purchase_invoice.on_cancel",
+		# before_cancel (on_cancel EMAS): LCV'lar PI'ning o'z stock-bekor
+		# qilishidan OLDIN cancel bo'lishi shart — aks holda LCV repost'i
+		# bekor qilingan SLE'larni qayta tiriltirib, arvoh-yozuv qoldiradi.
+		"before_cancel": "suviner.overrides.purchase_invoice.before_cancel",
 	}
 }
 

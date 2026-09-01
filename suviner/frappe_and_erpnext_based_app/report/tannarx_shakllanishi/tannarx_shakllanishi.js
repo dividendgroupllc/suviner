@@ -1,4 +1,9 @@
-frappe.query_reports["Sebestoimost Tovara"] = {
+frappe.query_reports["Tannarx Shakllanishi"] = {
+    "tree": true,
+    "name_field": "component",
+    "parent_field": "parent_component",
+    "initial_depth": 2,
+
     "filters": [
         {
             "fieldname": "company",
@@ -55,22 +60,23 @@ frappe.query_reports["Sebestoimost Tovara"] = {
             value = value.replace(/\$/g, '');
         }
 
-        // Bir xil itemning ikkinchi va keyingi Доп. расход qatorlarida
-        // item darajasidagi (takrorlangan) qiymatlarni kamroq ko'zga
-        // tashlanadigan qilib ko'rsatish — bu sof kosmetik, qiymatning
-        // o'zini o'zgartirmaydi.
-        const item_level_fields = [
-            "posting_date", "purchase_invoice", "company", "supplier",
-            "item_code", "item_name", "qty", "stock_uom",
-            "base_net_amount", "item_tax_amount", "landed_cost_voucher_amount",
-            "total_cost_value", "valuation_rate"
-        ];
-        if (data && data.is_item_repeat && item_level_fields.includes(column.fieldname)) {
-            value = `<span style="color: #bbb;">${value}</span>`;
+        if (!data) return value;
+
+        // L0 (tovar qatori) — qalin; komponent yig'indisi mos kelmasa qizil ogohlantirish
+        if (data.indent === 0) {
+            if (["component", "amount", "per_unit"].includes(column.fieldname)) {
+                value = `<span style="font-weight: 600;">${value}</span>`;
+            }
+            if (column.fieldname == "component" && Math.abs(data.farq || 0) >= 0.01) {
+                value = `<span style="color:#c0392b;">⚠ ${value}</span>`;
+            }
         }
 
-        if (column.fieldname == "item_share_of_row" && value) {
-            value = `<span style="font-weight: 600;">${value}</span>`;
+        // L1 komponent qatorlari — usul belgisi rangli
+        if (data.indent === 1 && column.fieldname == "basis" && value) {
+            const colors = { "Qty": "#2980b9", "Amount": "#27ae60", "Kg": "#8e44ad" };
+            const c = colors[data.basis] || "#7f8c8d";
+            value = `<span style="color:${c}; font-weight:600;">${value}</span>`;
         }
 
         return value;
