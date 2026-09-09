@@ -223,9 +223,16 @@ def get_lcv_components(pi_names):
         return {}
 
     lcv_names = [l.lcv for l in lcvs]
-    taxes = group_by(frappe.db.sql("""
-        select parent as lcv, idx, expense_account, description, amount,
-               custom_dop_rasxod_row, custom_distribution_basis
+    # Iz-maydonlar (custom_dop_rasxod_row / custom_distribution_basis) hali
+    # yaratilmagan saytda ham report yiqilmasin — ular bo'lmasa description
+    # parse-fallback ishlaydi (describe_tax_row).
+    link_cols = (
+        ", custom_dop_rasxod_row, custom_distribution_basis"
+        if frappe.db.has_column("Landed Cost Taxes and Charges", "custom_dop_rasxod_row")
+        else ""
+    )
+    taxes = group_by(frappe.db.sql(f"""
+        select parent as lcv, idx, expense_account, description, amount{link_cols}
         from `tabLanded Cost Taxes and Charges`
         where parent in %(lcvs)s order by parent, idx
     """, {"lcvs": lcv_names}, as_dict=True), "lcv")
