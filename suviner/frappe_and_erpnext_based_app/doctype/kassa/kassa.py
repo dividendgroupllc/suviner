@@ -111,6 +111,10 @@ class Kassa(Document):
         pe.reference_date = self.date
         pe.remarks = self.remarks or f"Payment for {self.name}"
 
+        # SI/PI'dan kelgan Kassa bo'lsa — to'lovni o'sha invoysga bog'laymiz
+        # (aks holda invoys outstanding'i kamaymay "Unpaid"ligicha qolardi).
+        self.add_invoice_reference(pe)
+
         pe.flags.ignore_permissions = True
         pe.insert()
         pe.submit()
@@ -120,6 +124,43 @@ class Kassa(Document):
         frappe.msgprint(_("Payment Entry {0} создан").format(
             frappe.utils.get_link_to_form("Payment Entry", pe.name)
         ))
+
+    def add_invoice_reference(self, pe):
+        """«Создать > Касса» orqali kelgan to'lovni invoysga taqsimlaydi.
+
+        allocated_amount PE'da party-hisob valyutasida bo'ladi: Receive'da
+        party tomoni paid_from (paid_amount), Pay'da paid_to (received_amount).
+        Invoys outstanding'idan oshirmaymiz — ortig'i partiya balansida qoladi.
+        """
+        inv_dt = self.get("against_invoice_doctype")
+        inv_name = self.get("against_invoice")
+        if not (inv_dt and inv_name) or not frappe.db.exists(inv_dt, inv_name):
+            return
+
+        inv = frappe.db.get_value(
+            inv_dt, inv_name, ["docstatus", "outstanding_amount"], as_dict=True
+        )
+        if not inv or inv.docstatus != 1:
+            return
+        outstanding = flt(inv.outstanding_amount)
+        if outstanding <= 0:
+            return
+
+        party_side_amount = (
+            flt(pe.paid_amount) if pe.payment_type == "Receive" else flt(pe.received_amount)
+        )
+        allocated = min(outstanding, party_side_amount)
+        if allocated <= 0:
+            return
+
+        pe.append(
+            "references",
+            {
+                "reference_doctype": inv_dt,
+                "reference_name": inv_name,
+                "allocated_amount": allocated,
+            },
+        )
 
     def get_paid_from_account(self, payment_type, party_account=None):
         """Payment type ga qarab paid_from accountni olish"""

@@ -25,6 +25,7 @@
   "party_type",
   "party",
   "party_name",
+  "party_balance",
   "party_currency",
   "column_break_2",
   "expense_account",
@@ -41,6 +42,8 @@
   "manual_credit_amount",
   "section_break_details",
   "remarks",
+  "against_invoice_doctype",
+  "against_invoice",
   "section_break_currency_info",
   "currency_info_html",
   "section_break_linked",
@@ -221,6 +224,15 @@
    "read_only": 1
   },
   {
+   "fieldname": "party_balance",
+   "fieldtype": "Currency",
+   "label": "Остаток контрагента",
+   "read_only": 1,
+   "no_copy": 1,
+   "depends_on": "eval:doc.party",
+   "description": "Мусбат — контрагент бизга қарздор; манфий — биз қарздормиз"
+  },
+  {
    "depends_on": "eval:doc.party && in_list(['Customer', 'Supplier'], doc.party_type)",
    "fieldname": "party_currency",
    "fieldtype": "Data",
@@ -284,6 +296,25 @@
    "label": "Примечание"
   },
   {
+   "fieldname": "against_invoice_doctype",
+   "fieldtype": "Select",
+   "options": "\nSales Invoice\nPurchase Invoice",
+   "label": "Тип счета (ссылка)",
+   "hidden": 1,
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "against_invoice",
+   "fieldtype": "Dynamic Link",
+   "options": "against_invoice_doctype",
+   "label": "По счету",
+   "read_only": 1,
+   "no_copy": 1,
+   "depends_on": "eval:doc.against_invoice",
+   "description": "SI/PI'даги «Создать > Касса» орқали келган — тўлов шу счетга боғланади"
+  },
+  {
    "fieldname": "section_break_currency_info",
    "fieldtype": "Section Break",
    "label": "Информация"
@@ -326,7 +357,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-02-20 22:00:00.000000",
+ "modified": "2026-09-11 15:00:00.000000",
  "modified_by": "Administrator",
  "module": "Frappe and Erpnext based app",
  "name": "Kassa",

@@ -43,7 +43,11 @@ app_license = "mit"
 # page_js = {"page" : "public/js/file.js"}
 
 # include js in doctype views
-doctype_js = {"Purchase Invoice": "public/js/purchase_invoice.js"}
+doctype_js = {
+	"Purchase Invoice": "public/js/purchase_invoice.js",
+	"Sales Invoice": "public/js/sales_invoice.js",
+	"Journal Entry": "public/js/journal_entry.js",
+}
 # doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
 # doctype_calendar_js = {"doctype" : "public/js/doctype_calendar.js"}
@@ -83,7 +87,9 @@ doctype_js = {"Purchase Invoice": "public/js/purchase_invoice.js"}
 # ------------
 
 # before_install = "suviner.install.before_install"
-after_install = "suviner.custom.purchase_invoice_dop_rasxod.execute"
+# Fresh-installda patchlar "bajarilgan" deb belgilanadi — barcha maydon-
+# yaratuvchi executelarni after_install o'zi chaqiradi (suviner/install.py).
+after_install = "suviner.install.after_install"
 
 # Uninstallation
 # ------------
@@ -185,9 +191,12 @@ doc_events = {
 # Overriding Methods
 # ------------------------------
 #
-# override_whitelisted_methods = {
-# 	"frappe.desk.doctype.event.event.get_events": "suviner.event.get_events"
-# }
+# ERPNext yadro-bug workaround: Loyalty Program so'rovi MariaDB 11.5+/12.x da
+# 1064 beradi (to_date zaxira funksiya nomi, backtick'siz). Batafsil:
+# suviner/overrides/loyalty.py
+override_whitelisted_methods = {
+	"erpnext.accounts.doctype.sales_invoice.sales_invoice.get_loyalty_programs": "suviner.overrides.loyalty.get_loyalty_programs",
+}
 #
 # each overriding function accepts a `data` argument;
 # generated from the base implementation of the doctype dashboard,

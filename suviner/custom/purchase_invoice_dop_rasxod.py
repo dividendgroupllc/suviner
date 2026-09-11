@@ -36,11 +36,35 @@ CUSTOM_FIELDS = {
 			"description": "Ишлатилади, агар харажат қаторида ўз усули танланмаган бўлса. Kg — товар оғирлиги бўйича (Кг × Кол-во).",
 		},
 		{
+			# Taqsimlash-usuli tanlovining o'ng yonidagi bo'sh joy uchun.
+			"fieldname": "custom_dop_rasxod_cb",
+			"fieldtype": "Column Break",
+			"insert_after": "custom_distribute_charges_based_on",
+		},
+		{
+			# Bank-uslubidagi jonli kurs-taxtasi (JS to'ldiradi:
+			# suviner.currency_rates.get_latest_exchange_rates).
+			"fieldname": "custom_kurs_html",
+			"label": "Валюта курслари",
+			"fieldtype": "HTML",
+			"insert_after": "custom_dop_rasxod_cb",
+			"depends_on": "eval:doc.custom_dop_rasxod",
+		},
+		{
+			# Ustunlar tugadi — jadval TO'LIQ kenglikda bo'lishi uchun yangi
+			# (chegarasiz) qator-bo'limi. Busiz jadval o'ng ustunga siqilib qoladi.
+			"fieldname": "custom_dop_rasxod_table_sb",
+			"fieldtype": "Section Break",
+			"hide_border": 1,
+			"insert_after": "custom_kurs_html",
+			"depends_on": "eval:doc.custom_dop_rasxod",
+		},
+		{
 			"fieldname": "custom_dop_rasxod_items",
 			"label": "Доп. расходлар",
 			"fieldtype": "Table",
 			"options": "Suviner Dop Rasxod",
-			"insert_after": "custom_distribute_charges_based_on",
+			"insert_after": "custom_dop_rasxod_table_sb",
 			"depends_on": "eval:doc.custom_dop_rasxod",
 		},
 	],

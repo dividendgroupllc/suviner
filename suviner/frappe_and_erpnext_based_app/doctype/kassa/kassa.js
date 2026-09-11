@@ -754,3 +754,58 @@ function get_party_name_field(party_type) {
     };
     return name_fields[party_type] || null;
 }
+
+// ─── Kontragent qoldig'i (suviner.party_balance) ──────────────────────────
+// Kontragent tanlanganda uning GL bo'yicha joriy qoldig'i "Остаток
+// контрагента" maydonida ko'rsatiladi (musbat — bizga qarzdor, manfiy —
+// biz qarzdormiz). frappe.ui.form.on bir doctype uchun bir necha marta
+// chaqirilsa handlerlar QO'SHILADI — yuqoridagi bloklarga tegilmagan.
+frappe.ui.form.on("Kassa", {
+    refresh(frm) {
+        // SI/PI'dan "Create > Касса" bilan ochilganda party route_options
+        // orqali jimgina (triggersiz) yoziladi, party_name esa read-only
+        // bo'lgani uchun umuman kelmaydi. route-qiymatlar refresh'gacha
+        // qo'llanib bo'ladi — shu yerda bir marta party-triggerni o'zimiz
+        // ishga tushirib, nom/valyuta/kurslarni to'ldiramiz.
+        if (frm.is_new() && frm.doc.party && frm._suviner_party_boot !== frm.doc.name) {
+            // frm obyekti sessiyada qayta ishlatiladi — guard hujjat nomiga
+            // bog'lanadi, aks holda ikkinchi hujjatda trigger ishlamay qolardi.
+            frm._suviner_party_boot = frm.doc.name;
+            frm.trigger("party");
+        }
+        suviner_update_party_balance(frm);
+    },
+    party(frm) {
+        suviner_update_party_balance(frm);
+    },
+    party_type(frm) {
+        set_derived_value(frm, "party_balance", 0);
+    },
+});
+
+function suviner_update_party_balance(frm) {
+    // Submitted hujjatda saqlangan (o'sha paytdagi) qiymat qoladi —
+    // jonli qoldiq bilan ustidan yozmaymiz.
+    if (frm.doc.docstatus > 0) return;
+    if (!frm.doc.party_type || !frm.doc.party) {
+        set_derived_value(frm, "party_balance", 0);
+        return;
+    }
+    frappe.call({
+        method: "suviner.party_balance.get_party_balance",
+        args: {
+            party_type: frm.doc.party_type,
+            party: frm.doc.party,
+            company: frm.doc.company,
+            date: frm.doc.date,
+        },
+        callback(r) {
+            if (!r.message) return;
+            set_derived_value(frm, "party_balance", r.message.balance);
+            frm.set_df_property(
+                "party_balance", "description",
+                frappe.utils.escape_html(r.message.message)
+            );
+        },
+    });
+}
