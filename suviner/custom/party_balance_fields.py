@@ -17,18 +17,34 @@ _COMMON = {
 	"fieldname": "custom_party_balance",
 	"label": "Остаток контрагента",
 	"fieldtype": "Currency",
+	# Valyuta belgisi kontragent hisobining valyutasidan (yonidagi yashirin
+	# maydon, JS to'ldiradi) — aks holda desk doim kompaniya valyutasini chizadi.
+	"options": "custom_party_balance_currency",
 	"read_only": 1,
 	"no_copy": 1,
 	"print_hide": 1,
 	"description": "Мусбат — контрагент бизга қарздор; манфий — биз қарздормиз",
 }
 
+_CURRENCY = {
+	"fieldname": "custom_party_balance_currency",
+	"label": "Валюта остатка (ички)",
+	"fieldtype": "Data",
+	"hidden": 1,
+	"read_only": 1,
+	"no_copy": 1,
+	"print_hide": 1,
+	"insert_after": "custom_party_balance",
+}
+
 CUSTOM_FIELDS = {
 	"Sales Invoice": [
 		{**_COMMON, "insert_after": "customer", "depends_on": "eval:doc.customer"},
+		dict(_CURRENCY),
 	],
 	"Purchase Invoice": [
 		{**_COMMON, "insert_after": "supplier", "depends_on": "eval:doc.supplier"},
+		dict(_CURRENCY),
 	],
 	"Journal Entry Account": [
 		{
@@ -39,6 +55,7 @@ CUSTOM_FIELDS = {
 			"in_list_view": 1,
 			"columns": 1,
 		},
+		dict(_CURRENCY),
 	],
 }
 

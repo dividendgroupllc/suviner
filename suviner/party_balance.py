@@ -29,21 +29,36 @@ def get_party_balance(party_type, party, company=None, date=None):
 	company = company or frappe.defaults.get_user_default("Company") \
 		or frappe.db.get_single_value("Global Defaults", "default_company")
 
-	# in_account_currency=False — qoldiq KOMPANIYA valyutasida (aks holda har
-	# hisob o'z valyutasida yig'ilib, ko'p-valyutali kontragentda ma'nosiz
-	# aralash summa chiqadi; yorliq/formatlash ham kompaniya valyutasida).
+	# Valyuta — KONTRAGENT hisobining valyutasi (ERPNext PE'dagi party_balance
+	# bilan bir xil): UZS ta'minotchi so'mda, USD'lik dollarda ko'radi.
+	# Hisob topilmasa (masalan Employee'da payable sozlanmagan) — kompaniya
+	# valyutasiga tushamiz.
+	company_currency = frappe.get_cached_value("Company", company, "default_currency")
+	party_currency = None
+	try:
+		from erpnext.accounts.party import get_party_account
+
+		party_account = get_party_account(party_type, party, company)
+		if party_account:
+			party_currency = frappe.get_cached_value("Account", party_account, "account_currency")
+	except Exception:
+		party_currency = None
+
+	currency = party_currency or company_currency
 	balance = flt(
 		get_balance_on(
 			party_type=party_type,
 			party=party,
 			company=company,
 			date=date or None,
-			in_account_currency=False,
+			# Kontragent valyutasi kompaniyanikidan farq qilsa — hisob-valyuta
+			# summalari (yadro PE xulqi); teng bo'lsa kompaniya valyutasida
+			# (aralash-hisobli chekka holatda ham barqaror).
+			in_account_currency=(currency != company_currency),
 		),
 		2,
 	)
 
-	currency = frappe.get_cached_value("Company", company, "default_currency")
 	formatted = fmt_money(abs(balance), currency=currency)
 
 	if balance > 0:

@@ -26,6 +26,7 @@
   "party",
   "party_name",
   "party_balance",
+  "party_balance_currency",
   "party_currency",
   "column_break_2",
   "expense_account",
@@ -230,7 +231,16 @@
    "read_only": 1,
    "no_copy": 1,
    "depends_on": "eval:doc.party",
-   "description": "Мусбат — контрагент бизга қарздор; манфий — биз қарздормиз"
+   "description": "Мусбат — контрагент бизга қарздор; манфий — биз қарздормиз",
+   "options": "party_balance_currency"
+  },
+  {
+   "fieldname": "party_balance_currency",
+   "fieldtype": "Data",
+   "label": "Валюта остатка (ички)",
+   "hidden": 1,
+   "read_only": 1,
+   "no_copy": 1
   },
   {
    "depends_on": "eval:doc.party && in_list(['Customer', 'Supplier'], doc.party_type)",
@@ -357,7 +367,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-09-11 15:00:00.000000",
+ "modified": "2026-09-11 17:00:00.000000",
  "modified_by": "Administrator",
  "module": "Frappe and Erpnext based app",
  "name": "Kassa",

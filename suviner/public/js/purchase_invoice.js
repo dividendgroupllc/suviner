@@ -47,13 +47,17 @@ function suviner_pi_party_balance(frm) {
         callback(r) {
             const m = r.message;
             if (!m || frm.doc.supplier !== requested_supplier) return;
-            suviner_pi_set_balance(frm, m.balance, m.message);
+            suviner_pi_set_balance(frm, m.balance, m.message, m.currency);
         },
     });
 }
 
 // Qiymatni dirty-belgisiz yozish (Kassa'dagi set_derived_value uslubi).
-function suviner_pi_set_balance(frm, value, message) {
+function suviner_pi_set_balance(frm, value, message, currency) {
+    if (frm.doc.custom_party_balance_currency !== (currency || "")) {
+        frm.doc.custom_party_balance_currency = currency || "";
+        frm.refresh_field("custom_party_balance_currency");
+    }
     if (frm.doc.custom_party_balance !== value) {
         frm.doc.custom_party_balance = value;
         frm.refresh_field("custom_party_balance");

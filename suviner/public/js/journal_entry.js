@@ -25,6 +25,7 @@ frappe.ui.form.on("Journal Entry Account", {
                 const live_row = locals[cdt] && locals[cdt][cdn];
                 // Javob kelguncha qator o'chirilgan/kontragent almashgan bo'lsa — yozmaymiz.
                 if (!m || !live_row || live_row.party !== requested_party) return;
+                frappe.model.set_value(cdt, cdn, "custom_party_balance_currency", m.currency || "");
                 frappe.model.set_value(cdt, cdn, "custom_party_balance", m.balance);
             },
         });

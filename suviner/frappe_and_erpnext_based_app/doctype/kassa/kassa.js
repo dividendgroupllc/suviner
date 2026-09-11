@@ -801,6 +801,7 @@ function suviner_update_party_balance(frm) {
         },
         callback(r) {
             if (!r.message) return;
+            set_derived_value(frm, "party_balance_currency", r.message.currency || "");
             set_derived_value(frm, "party_balance", r.message.balance);
             frm.set_df_property(
                 "party_balance", "description",
