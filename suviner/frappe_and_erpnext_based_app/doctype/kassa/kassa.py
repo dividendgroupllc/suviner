@@ -34,6 +34,14 @@ def get_account_currency_amount(company_amount, account_currency, company_curren
 
 
 class Kassa(Document):
+    def before_insert(self):
+        # Amend/duplicate'da eski PE/JE havolasi ko'chib kelmasin: bu maydonlar
+        # FAQAT on_submit'dagi set_linked_document orqali to'ladi (no_copy bor,
+        # lekin frappe amend'da no_copy'ni ham saqlaydi; desk'da kassa.js
+        # tozalaydi — bu server-zaxira API/skript orqali kelganlar uchun).
+        self.linked_doctype = ""
+        self.linked_entry = ""
+
     def validate(self):
         self.set_default_company()
         self.set_cash_account()
@@ -51,7 +59,9 @@ class Kassa(Document):
     def on_submit(self):
         """Submit bo'lganda Payment Entry yoki Journal Entry yaratish"""
         if self.transaction_type in ["Приход", "Расход"]:
-            if self.party_type in ["Customer", "Supplier", "Employee"]:
+            # 2026-09-12: Shareholder ilgari HECH QAYSI shoxga tushmay, hujjat
+            # yozuvsiz submit bo'lardi (kassa-kitob farqi!) — endi PE oladi.
+            if self.party_type in ["Customer", "Supplier", "Employee", "Shareholder"]:
                 self.create_payment_entry()
             elif is_dividend_party_type(self.party_type):
                 self.create_dividend_journal_entry()
@@ -181,6 +191,19 @@ class Kassa(Document):
         if self.party_type in ["Customer", "Supplier"]:
             return erpnext_get_party_account(self.party_type, self.party, self.company)
 
+        if self.party_type == "Shareholder":
+            # ERPNext Party Type ro'yxatida Shareholder = Payable; kompaniya
+            # defaulti bo'lmasa Employee'dagi kabi Payable-zanjirga tushamiz.
+            try:
+                account = erpnext_get_party_account(self.party_type, self.party, self.company)
+                if account:
+                    return account
+            except Exception:
+                pass
+            account = self._fallback_payable_account()
+            if account:
+                return account
+
         if self.party_type == "Employee":
             # 2026-08-31 audit: ilgari DUCH KELGAN birinchi Payable olinardi
             # (valyuta/tur filtrisiz). Endi ustuvorlik: kompaniyaning payroll
@@ -188,37 +211,37 @@ class Kassa(Document):
             # oxirgi zaxira sifatida istalgan Payable.
             payable_account = frappe.get_cached_value(
                 "Company", self.company, "default_payroll_payable_account"
-            )
-            if not payable_account:
-                doc_currency = (
-                    self.get("party_currency")
-                    or frappe.get_cached_value("Company", self.company, "default_currency")
-                )
-                payable_account = frappe.db.get_value(
-                    "Account",
-                    {
-                        "company": self.company,
-                        "account_type": "Payable",
-                        "is_group": 0,
-                        "account_currency": doc_currency,
-                    },
-                    "name",
-                )
-            if not payable_account:
-                payable_account = frappe.db.get_value(
-                    "Account",
-                    {"company": self.company, "account_type": "Payable", "is_group": 0},
-                    "name",
-                )
+            ) or self._fallback_payable_account()
             if payable_account:
                 return payable_account
 
         frappe.throw(_("Не удалось определить счет контрагента для {0}").format(self.party_type))
 
+    def _fallback_payable_account(self):
+        """Valyutaga mos Payable → istalgan Payable (Employee/Shareholder zaxirasi)."""
+        doc_currency = (
+            self.get("party_currency")
+            or frappe.get_cached_value("Company", self.company, "default_currency")
+        )
+        return frappe.db.get_value(
+            "Account",
+            {
+                "company": self.company,
+                "account_type": "Payable",
+                "is_group": 0,
+                "account_currency": doc_currency,
+            },
+            "name",
+        ) or frappe.db.get_value(
+            "Account",
+            {"company": self.company, "account_type": "Payable", "is_group": 0},
+            "name",
+        )
+
     def is_party_multicurrency_payment(self):
         return (
             self.transaction_type in ["Приход", "Расход"]
-            and self.party_type in ["Customer", "Supplier", "Employee"]
+            and self.party_type in ["Customer", "Supplier", "Employee", "Shareholder"]
             and self.cash_account
             and self.party
             and self.party_currency
