@@ -146,6 +146,9 @@ frappe.ui.form.on("Kassa", {
     },
 
     transaction_type: function(frm) {
+        // Tur almashganda eski summa qolib ketmasin (Konvertatsiyada amount
+        // maydoni yashirinib, eskirgan qiymati hisobotlarni chalg'itardi).
+        frm.set_value("amount", 0);
         // Clear party fields
         frm.set_value("party_type", "");
         frm.set_value("party", "");

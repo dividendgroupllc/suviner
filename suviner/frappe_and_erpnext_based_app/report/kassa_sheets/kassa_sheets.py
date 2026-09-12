@@ -5,8 +5,9 @@ Kassa Sheets — Kassa hujjatlari uchun "varaq" hisoboti (Prodaja/Prixod Sheets
 uslubida): davr bo'yicha barcha kassa operatsiyalari kassa-kitob ko'rinishida.
 
 - Приход / Расход alohida ustunlarda (klassik kassa kitobi);
-- Перемещения/Конвертация qatorlarida summa Расход ustunida (manba kassadan
-  chiqim), "Контрагент" ustunida esa qayerga o'tgani (→ maqsad kassa);
+- Перемещения/Конвертация IKKI qator bo'ladi: manba kassada Расход,
+  maqsad kassada Приход (har biri O'Z valyutasida) — xuddi qog'oz kassa
+  kitobidagidek; filtrlar ikkala tomonni ham topadi;
 """
 
 import frappe
@@ -16,6 +17,8 @@ from frappe.utils import flt
 
 TX_PRIXOD = "Приход"
 TX_RASXOD = "Расход"
+TX_TRANSFER = "Перемещения"
+TX_KONV = "Конвертация"
 
 
 def execute(filters=None):
@@ -29,6 +32,7 @@ def get_columns(filters):
     # Ustun nomlari — Kassa doctype'dagi field-nomlar bilan AYNAN bir xil.
     cols = [
         {"fieldname": "date", "label": _("Дата"), "fieldtype": "Date", "width": 95},
+        {"fieldname": "time", "label": _("Время"), "fieldtype": "Data", "width": 70},
         {"fieldname": "transaction_type", "label": _("Тип операции"), "fieldtype": "Data", "width": 115},
         {"fieldname": "mode_of_payment", "label": _("Способ оплаты"), "fieldtype": "Link", "options": "Mode of Payment", "width": 135},
         {"fieldname": "mode_of_payment_to", "label": _("Способ оплаты (куда)"), "fieldtype": "Data", "width": 150},
@@ -62,10 +66,16 @@ def get_data(filters):
     else:
         conditions.append("k.docstatus = 1")
 
-    for field in ("transaction_type", "mode_of_payment", "party_type"):
+    for field in ("transaction_type", "party_type"):
         if filters.get(field):
             conditions.append(f"k.{field} = %({field})s")
             values[field] = filters[field]
+
+    if filters.get("mode_of_payment"):
+        # transfer/konvertatsiyada maqsad kassa ham mos kelsin (qator-darajada
+        # yakuniy filtr pastda)
+        conditions.append("(k.mode_of_payment = %(mode_of_payment)s or k.mode_of_payment_to = %(mode_of_payment)s)")
+        values["mode_of_payment"] = filters["mode_of_payment"]
 
     if filters.get("party"):
         conditions.append("(k.party = %(party)s or k.party_name like %(party_like)s)")
@@ -73,11 +83,11 @@ def get_data(filters):
         values["party_like"] = f"%{filters['party']}%"
 
     if filters.get("currency"):
-        conditions.append("k.cash_account_currency = %(currency)s")
+        conditions.append("(k.cash_account_currency = %(currency)s or k.cash_account_to_currency = %(currency)s)")
         values["currency"] = filters["currency"]
 
     rows = frappe.db.sql(f"""
-        select k.name, k.date, k.docstatus, k.transaction_type,
+        select k.name, k.date, time_format(k.time, '%%H:%%i') as time, k.docstatus, k.transaction_type,
                k.mode_of_payment, k.mode_of_payment_to,
                k.cash_account_currency, k.cash_account_to_currency,
                k.amount, k.debit_amount, k.credit_amount,
@@ -87,46 +97,91 @@ def get_data(filters):
                k.against_invoice
         from `tabKassa` k
         where {' and '.join(conditions)}
-        order by k.date, k.name
+        order by k.date, k.time, k.name
     """, values, as_dict=True)
 
     data = []
     for r in rows:
-        # Konvertatsiyada summa debit_amount'da saqlanadi (amount 0 bo'ladi)
-        summa = flt(r.amount) or flt(r.debit_amount)
-        prixod = summa if r.transaction_type == TX_PRIXOD else None
-        rasxod = summa if r.transaction_type != TX_PRIXOD else None
-
-        # Kontragent — faqat Приход/Расходда; yo'nalish alohida ustunda
-        kontragent = ""
-        if r.transaction_type in (TX_PRIXOD, TX_RASXOD):
-            kontragent = r.party_name or r.party or r.expense_account_name or ""
-            if r.party_type and (r.party_name or r.party):
-                kontragent = f"{kontragent} ({r.party_type})"
-        if r.against_invoice:
-            kontragent = f"{kontragent} · {r.against_invoice}" if kontragent else r.against_invoice
-
-        # Qayerga (transfer/konvertatsiya): maqsad kassa, konvertatsiyada
-        # qabul qilingan summa-valyuta ham ko'rsatiladi
-        mop_to = r.mode_of_payment_to or ""
-        if mop_to and r.transaction_type == "Конвертация" and flt(r.credit_amount):
-            mop_to = f"{mop_to} ({flt(r.credit_amount):,.2f} {r.cash_account_to_currency or ''})".rstrip()
-
-        data.append({
+        base = {
             "date": r.date,
+            "time": r.time,
             "name": r.name,
             "status": _("Черновик") if r.docstatus == 0 else _("Проведен"),
             "transaction_type": r.transaction_type,
-            "mode_of_payment": r.mode_of_payment,
-            "mode_of_payment_to": mop_to or None,
-            "currency": r.cash_account_currency,
-            "prixod": prixod,
-            "rasxod": rasxod,
-            "kontragent": kontragent,
             "expense_account": r.expense_account,
             "remarks": r.remarks,
             "linked": f"{r.linked_doctype}: {r.linked_entry}" if r.linked_entry else None,
             "docstatus": r.docstatus,
-        })
+        }
+
+        invoice_ref = r.against_invoice or ""
+
+        if r.transaction_type in (TX_TRANSFER, TX_KONV) and r.mode_of_payment_to:
+            # IKKI qator: manbada chiqim, maqsadda kirim — har biri o'z
+            # kassasi va valyutasida. Summalar TUR bo'yicha aniq maydondan
+            # olinadi (qiymat-hidlash emas: tur almashtirilganda eskirgan
+            # amount qolib ketishi mumkin).
+            if r.transaction_type == TX_KONV:
+                chiqim = flt(r.debit_amount) or flt(r.amount)
+                kirim = flt(r.credit_amount)
+                # Konvertatsiyada maqsad valyuta manbanikidan farq qiladi —
+                # noma'lum bo'lsa manba valyutasini YOZMAYMIZ (bo'sh qoladi).
+                kirim_currency = r.cash_account_to_currency or ""
+            else:
+                chiqim = flt(r.amount) or flt(r.debit_amount)
+                kirim = chiqim
+                kirim_currency = r.cash_account_to_currency or r.cash_account_currency
+
+            data.append({
+                **base,
+                "mode_of_payment": r.mode_of_payment,
+                "mode_of_payment_to": f"→ {r.mode_of_payment_to}",
+                "currency": r.cash_account_currency,
+                "prixod": None,
+                "rasxod": chiqim,
+                "kontragent": invoice_ref,
+            })
+            # Maqsad-qator faqat real kirim bo'lsa (draft konvertatsiyada
+            # credit hali 0 bo'lishi mumkin — 0.00 fantom qator chiqarmaymiz).
+            if kirim:
+                data.append({
+                    **base,
+                    "mode_of_payment": r.mode_of_payment_to,
+                    "mode_of_payment_to": f"← {r.mode_of_payment}" if r.mode_of_payment else None,
+                    "currency": kirim_currency,
+                    "prixod": kirim,
+                    "rasxod": None,
+                    "kontragent": invoice_ref,
+                })
+        else:
+            # Приход/Расход — bitta qator. Noma'lum/kelajak turlar ham xavfsiz
+            # bitta chiqim-qatorga tushadi (kirim to'qib chiqarilmaydi).
+            if r.transaction_type in (TX_PRIXOD, TX_RASXOD):
+                summa = flt(r.amount)
+                kontragent = r.party_name or r.party or r.expense_account_name or ""
+                if r.party_type and (r.party_name or r.party):
+                    kontragent = f"{kontragent} ({r.party_type})"
+            else:
+                summa = flt(r.amount) or flt(r.debit_amount)
+                kontragent = ""
+            if invoice_ref:
+                kontragent = f"{kontragent} · {invoice_ref}" if kontragent else invoice_ref
+
+            data.append({
+                **base,
+                "mode_of_payment": r.mode_of_payment,
+                "mode_of_payment_to": f"→ {r.mode_of_payment_to}" if r.mode_of_payment_to else None,
+                "currency": r.cash_account_currency,
+                "prixod": summa if r.transaction_type == TX_PRIXOD else None,
+                "rasxod": summa if r.transaction_type != TX_PRIXOD else None,
+                "kontragent": kontragent,
+            })
+
+    # Qator-darajadagi yakuniy filtr: kassa/valyuta endi har qatorning
+    # O'ZIGA qaraydi (transfer-kirim qatori ham to'g'ri topiladi).
+    if filters.get("mode_of_payment"):
+        data = [d for d in data if d["mode_of_payment"] == filters["mode_of_payment"]]
+    if filters.get("currency"):
+        data = [d for d in data if d["currency"] == filters["currency"]]
 
     return data

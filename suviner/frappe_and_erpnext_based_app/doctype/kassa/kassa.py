@@ -906,11 +906,13 @@ def get_account_balance(account, company):
 
 @frappe.whitelist()
 def get_expense_accounts(doctype, txt, searchfield, start, page_len, filters):
-    """5200 accounti ichidagi expense accountlarni olish."""
-    company = (filters or {}).get("company")
-    parent_account = get_expense_parent_account(company)
+    """Kompaniyaning BARCHA leaf Expense hisoblari.
 
-    if not parent_account:
+    Ilgari faqat 5200 guruhi ostidagilar chiqardi (mmj naslidan qolgan
+    cheklov) — Suviner rejasidagi «Админ расход» kabi guruhlar chetda
+    qolib ketardi (2026-09-12 user talabi bilan olib tashlandi)."""
+    company = (filters or {}).get("company")
+    if not company:
         return []
 
     return frappe.db.sql("""
@@ -919,15 +921,12 @@ def get_expense_accounts(doctype, txt, searchfield, start, page_len, filters):
         WHERE company = %(company)s
         AND root_type = 'Expense'
         AND is_group = 0
-        AND lft > %(parent_lft)s
-        AND rgt < %(parent_rgt)s
+        AND disabled = 0
         AND (name LIKE %(txt)s OR account_name LIKE %(txt)s)
         ORDER BY name
         LIMIT %(start)s, %(page_len)s
     """, {
         "company": company,
-        "parent_lft": parent_account.lft,
-        "parent_rgt": parent_account.rgt,
         "txt": f"%{txt}%",
         "start": start,
         "page_len": page_len
@@ -966,19 +965,13 @@ def get_expense_parent_account(company):
 
 
 def validate_expense_account(expense_account, company):
-    """Expense account 5200 ichidagi leaf account ekanini tekshirish."""
-    parent_account = get_expense_parent_account(company)
+    """Har qanday leaf Expense hisobi qabul qilinadi (shu kompaniyaniki).
 
-    if not parent_account:
-        frappe.throw(_("Не найден счет расходов {0} для компании {1}").format(
-            EXPENSE_PARENT_ACCOUNT_NUMBER,
-            company,
-        ))
-
+    5200-subtree talabi olib tashlandi — ro'yxat bilan bir xil qoida."""
     account = frappe.db.get_value(
         "Account",
         expense_account,
-        ["company", "root_type", "is_group", "lft", "rgt"],
+        ["company", "root_type", "is_group"],
         as_dict=True,
     )
 
@@ -987,11 +980,9 @@ def validate_expense_account(expense_account, company):
         or account.company != company
         or account.root_type != "Expense"
         or cint(account.is_group)
-        or account.lft <= parent_account.lft
-        or account.rgt >= parent_account.rgt
     ):
-        frappe.throw(_("Счет расходов должен быть внутри счета {0}").format(
-            parent_account.name
+        frappe.throw(_("Счет расходов должен быть расходным (Expense) leaf-счетом компании {0}").format(
+            company
         ))
 
 

@@ -28,6 +28,7 @@ def make_kassa(doctype, name):
 	kassa.against_invoice_doctype = doctype
 	kassa.against_invoice = doc.name
 	kassa.date = frappe.utils.nowdate()
+	kassa.time = frappe.utils.nowtime()
 	kassa.amount = abs(outstanding)
 
 	if doctype == "Sales Invoice":
