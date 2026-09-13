@@ -10,15 +10,37 @@ from erpnext.accounts.party import get_party_account as erpnext_get_party_accoun
 # Konvertatsiya valyutalari turlicha bo'lgan har qanday enabled valyuta
 # juftligida amalga oshiriladi (UZS, USD, SAR, CNY, AED, ...). Yo'nalish
 # Mode of Payment turi nomidan EMAS, ulangan cash account valyutasidan aniqlanadi.
-DIVIDEND_ACCOUNT_NUMBERS = {
-    "Дивиденд": "3200",
-    "Дивиденд 1": "3200",
+# Dividend hisobini topish tartibi: avval account_number=3200 (mmj-uslub
+# rejalar), topilmasa nom bo'yicha (Suviner rejasi: Dividends Paid /
+# Dividend 2 — 2026-09-13 user talabi). Har party_type o'z hisobiga ulanadi.
+DIVIDEND_ACCOUNT_LOOKUPS = {
+    "Дивиденд": (
+        {"account_number": "3200"},
+        {"account_name": "Dividends Paid"},
+    ),
+    "Дивиденд 1": (
+        {"account_number": "3200"},
+        {"account_name": "Dividend 2"},
+    ),
 }
 EXPENSE_PARENT_ACCOUNT_NUMBER = "5200"
 
 
 def is_dividend_party_type(party_type):
-    return party_type in DIVIDEND_ACCOUNT_NUMBERS
+    return party_type in DIVIDEND_ACCOUNT_LOOKUPS
+
+
+def get_dividend_account(company, party_type):
+    """Party_type uchun dividend hisobi — nomzodlar tartib bilan sinaladi."""
+    for lookup in DIVIDEND_ACCOUNT_LOOKUPS.get(party_type, ()):
+        account = frappe.db.get_value(
+            "Account",
+            {"company": company, "is_group": 0, "disabled": 0, **lookup},
+            "name",
+        )
+        if account:
+            return account
+    return None
 
 
 def get_account_currency_amount(company_amount, account_currency, company_currency, date):
@@ -297,16 +319,16 @@ class Kassa(Document):
 
     def create_dividend_journal_entry(self):
         """Dividend uchun Journal Entry yaratish."""
-        account_number = DIVIDEND_ACCOUNT_NUMBERS.get(self.party_type, "3200")
-        dividend_account = frappe.db.get_value(
-            "Account",
-            {"company": self.company, "account_number": account_number, "is_group": 0},
-            "name",
-        )
+        dividend_account = get_dividend_account(self.company, self.party_type)
 
         if not dividend_account:
+            candidates = ", ".join(
+                str(list(lu.values())[0]) for lu in DIVIDEND_ACCOUNT_LOOKUPS.get(self.party_type, ())
+            )
             frappe.throw(
-                _("Счет дивидендов ({0}) не найден для компании {1}").format(account_number, self.company)
+                _("Счет дивидендов не найден для компании {0} (искали: {1})").format(
+                    self.company, candidates
+                )
             )
 
         cash_account_currency = frappe.get_cached_value("Account", self.cash_account, "account_currency")
