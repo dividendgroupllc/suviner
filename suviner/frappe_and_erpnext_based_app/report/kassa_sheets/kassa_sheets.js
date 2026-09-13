@@ -1,4 +1,13 @@
 frappe.query_reports["Kassa Sheets"] = {
+    onload: function(report) {
+        // Bu report doim TO'LIQ kenglikda ochilsin (ikki yon bo'sh qolmasin).
+        // Faqat shu sahifa konteyneriga ta'sir qiladi — global sozlamaga tegmaydi.
+        $(report.page.wrapper).closest(".container").css({
+            "max-width": "100%",
+            "width": "100%",
+        });
+    },
+
     "filters": [
         {
             "fieldname": "company",

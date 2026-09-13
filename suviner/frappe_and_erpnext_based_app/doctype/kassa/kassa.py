@@ -131,11 +131,26 @@ class Kassa(Document):
                 frappe.get_cached_value("Account", pe.paid_to, "account_currency")
             )
 
+            # Party-tomondagi summa. credit_amount'ni UI faqat Customer/Supplier
+            # uchun to'ldiradi — Shareholder/Employee'da bo'sh qoladi va PE
+            # "Paid Amount is mandatory" bilan yiqilardi (2026-09-13 bug).
+            # Bo'sh bo'lsa kursdan o'zimiz hisoblaymiz.
+            party_side_amount = flt(self.credit_amount)
+            if not party_side_amount:
+                rate = get_exchange_rate(cash_currency, party_account_currency, self.date)
+                if not rate or flt(rate) <= 0:
+                    frappe.throw(
+                        _("Не найден курс {0} → {1} — создайте запись Currency Exchange.").format(
+                            cash_currency, party_account_currency
+                        )
+                    )
+                party_side_amount = flt(flt(self.amount) * flt(rate), 2)
+
             if payment_type == "Pay":
                 pe.paid_amount = flt(self.amount)
-                pe.received_amount = flt(self.credit_amount)
+                pe.received_amount = party_side_amount
             else:
-                pe.paid_amount = flt(self.credit_amount)
+                pe.paid_amount = party_side_amount
                 pe.received_amount = flt(self.amount)
 
         # Set reference to Kassa
