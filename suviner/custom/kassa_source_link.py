@@ -19,10 +19,27 @@ _FIELD = {
 }
 
 CUSTOM_FIELDS = {
-	"Payment Entry": [dict(_FIELD)],
+	# Transaction ID bo'limida, Cheque/Reference yonida tursin — foydalanuvchi
+	# Kassa raqamini aynan shu yerda ko'radi va bosishni shu yerda kutadi.
+	"Payment Entry": [{**_FIELD, "insert_after": "reference_date"}],
 	"Journal Entry": [{**_FIELD, "insert_after": "cheque_date"}],
 }
 
 
 def execute():
 	create_custom_fields(CUSTOM_FIELDS, ignore_validate=True)
+
+	from frappe.custom.doctype.property_setter.property_setter import make_property_setter
+
+	# Kassa'dan kelgan hujjatda raqam ikki marta ko'rinmasin: link («Касса»)
+	# bor bo'lsa matnli Cheque/Reference yashirinadi; qo'lda kiritilgan
+	# PE/JE'larda (link bo'sh) avvalgidek ko'rinadi.
+	for dt, fieldname in (("Payment Entry", "reference_no"), ("Journal Entry", "cheque_no")):
+		make_property_setter(
+			dt,
+			fieldname,
+			"depends_on",
+			"eval:!doc.custom_source_kassa",
+			"Data",
+			validate_fields_for_doctype=False,
+		)
