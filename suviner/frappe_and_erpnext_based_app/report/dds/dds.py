@@ -26,7 +26,28 @@ def execute(filters=None):
     columns = get_columns()
     data, expense_summaries, dividend_summaries, opening_balances, closing_balances = get_data(filters)
     summary_html = get_summary_html(data, expense_summaries, dividend_summaries, opening_balances, closing_balances)
+    # ИТОГО — jadval OXIRIDA, har valyuta alohida. data allaqachon kategoriya-
+    # filtridan o'tgan, shuning uchun jami doim ko'rinayotgan qatorlarga mos.
+    append_total_rows(data)
     return columns, data, summary_html
+
+
+def append_total_rows(data):
+    totals = {}
+    for r in data:
+        cur = r.get("currency") or ""
+        t = totals.setdefault(cur, {"kirim": 0.0, "chiqim": 0.0})
+        t["kirim"] += flt(r.get("kirim"))
+        t["chiqim"] += flt(r.get("chiqim"))
+    for cur in sorted(totals):
+        t = totals[cur]
+        data.append({
+            "description": f"ИТОГО ({cur})" if cur else "ИТОГО",
+            "currency": cur,
+            "kirim": flt(t["kirim"], 2),
+            "chiqim": flt(t["chiqim"], 2),
+            "is_total_row": 1,
+        })
 
 
 def get_columns():

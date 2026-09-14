@@ -34,26 +34,38 @@ frappe.query_reports["Kassa Sheets"] = {
         {
             "fieldname": "transaction_type",
             "label": __("Тип операции"),
-            "fieldtype": "Select",
-            "options": "\nПриход\nРасход\nПеремещения\nКонвертация"
+            "fieldtype": "MultiSelectList",
+            get_data: function(txt) {
+                return ["Приход", "Расход", "Перемещения", "Конвертация"]
+                    .filter(v => !txt || v.toLowerCase().includes(txt.toLowerCase()))
+                    .map(v => ({ value: v, description: "" }));
+            }
         },
         {
             "fieldname": "mode_of_payment",
             "label": __("Касса (способ оплаты)"),
-            "fieldtype": "Link",
-            "options": "Mode of Payment"
+            "fieldtype": "MultiSelectList",
+            get_data: function(txt) {
+                return frappe.db.get_link_options("Mode of Payment", txt);
+            }
         },
         {
             "fieldname": "currency",
             "label": __("Валюта"),
-            "fieldtype": "Link",
-            "options": "Currency"
+            "fieldtype": "MultiSelectList",
+            get_data: function(txt) {
+                return frappe.db.get_link_options("Currency", txt, { enabled: 1 });
+            }
         },
         {
             "fieldname": "party_type",
             "label": __("Тип контрагента"),
-            "fieldtype": "Select",
-            "options": "\nCustomer\nSupplier\nShareholder\nEmployee\nРасходы"
+            "fieldtype": "MultiSelectList",
+            get_data: function(txt) {
+                return ["Customer", "Supplier", "Shareholder", "Employee", "Расходы"]
+                    .filter(v => !txt || v.toLowerCase().includes(txt.toLowerCase()))
+                    .map(v => ({ value: v, description: "" }));
+            }
         },
         {
             "fieldname": "party",

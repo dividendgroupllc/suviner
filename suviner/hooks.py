@@ -204,6 +204,10 @@ override_whitelisted_methods = {
 # override_doctype_dashboards = {
 # 	"Task": "suviner.task.get_dashboard_data"
 # }
+# Dop-rasxod qarzdorlik-JE'si PI'ning Connections'ida ko'rinsin
+override_doctype_dashboards = {
+	"Purchase Invoice": "suviner.overrides.purchase_invoice.get_dashboard_data",
+}
 
 # exempt linked doctypes from being automatically cancelled
 #

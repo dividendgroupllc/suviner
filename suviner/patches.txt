@@ -9,3 +9,4 @@ suviner.patches.rename_sebestoimost_to_tannarx
 suviner.patches.add_lcv_dop_rasxod_link_fields
 suviner.patches.add_party_balance_fields
 suviner.patches.add_dop_rasxod_kurs_board
+suviner.patches.add_dop_rasxod_je_field

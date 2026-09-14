@@ -53,6 +53,11 @@ frappe.query_reports["DDS"] = {
             value = value.replace(/\$/g, '');
         }
 
+        // ИТОГО qatorlari — qalin va ajralib turadi
+        if (data && data.is_total_row) {
+            return `<span style="font-weight:700;">${value}</span>`;
+        }
+
         if (column.fieldname == "kirim" && data) {
             if (!data.kirim) return "";
             value = `<span style="color: #1b5e20; font-weight: 600;">${value}</span>`;

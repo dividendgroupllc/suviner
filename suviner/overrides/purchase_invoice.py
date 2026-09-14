@@ -24,7 +24,20 @@ Yaxlitlash: eng katta qoldiq usuli — qator summasi tiyingacha aniq taqsimlanad
 import frappe
 from frappe import _
 from frappe.utils import flt
+from erpnext.accounts.party import get_party_account, get_party_account_currency
 from erpnext.setup.utils import get_exchange_rate
+
+
+def get_dashboard_data(data=None):
+	"""«Доп. расход» JE'sini PI'ning Connections bo'limida ko'rsatish.
+
+	Standart JE bog'lanishi reference_name orqali ishlaydi — bizning JE uchun
+	mos emas (validate_reference_doc party-mosligini talab qiladi), shuning
+	uchun custom_source_purchase_invoice maydonidan foydalanamiz."""
+	data = frappe._dict(data or {})
+	data.setdefault("non_standard_fieldnames", {})
+	data["non_standard_fieldnames"]["Journal Entry"] = "custom_source_purchase_invoice"
+	return data
 
 
 def _has_dop_rasxod(doc):
@@ -203,6 +216,7 @@ def on_submit(doc, method=None):
 		frappe.throw(_("«Доп. расход» белгиланган, лекин харажат қаторлари киритилмаган."))
 
 	create_landed_cost_voucher(doc)
+	create_dop_rasxod_liability_je(doc)
 
 
 def create_landed_cost_voucher(doc):
@@ -303,6 +317,91 @@ def create_landed_cost_voucher(doc):
 		)
 
 
+def create_dop_rasxod_liability_je(doc):
+	"""Har доп-расход qatoridagi Поставщикка qarzdorlik yozadi (mmj mantig'i).
+
+	Debet: row.expense_account (kompaniya valyutasida) — LCV shu hisobni xuddi
+	       shuncha summaga KREDIT qilgani uchun ikkalasi bir-birini yopadi
+	       (hisob tranzit bo'lib qoladi, xarajat tovar tannarxida).
+	Kredit: Поставщикнинг Payable hisobi (o'z valyutasida) — qarz endi
+	        Supplier ledger'da ko'rinadi va Kassa/PE bilan yopiladi.
+	"""
+
+	# Bitta PI uchun ikki marta yaratilmasin (amend/qayta submit holatlari).
+	if frappe.db.exists(
+		"Journal Entry", {"custom_source_purchase_invoice": doc.name, "docstatus": 1}
+	):
+		return
+
+	company_currency = frappe.get_cached_value("Company", doc.company, "default_currency")
+	cost_center = doc.get("cost_center") or frappe.get_cached_value(
+		"Company", doc.company, "cost_center"
+	)
+
+	je = frappe.new_doc("Journal Entry")
+	je.voucher_type = "Journal Entry"
+	je.company = doc.company
+	je.posting_date = doc.posting_date
+	je.custom_source_purchase_invoice = doc.name
+	je.multi_currency = 1
+
+	for row in doc.custom_dop_rasxod_items:
+		if not flt(row.base_amount):
+			continue
+		je.append(
+			"accounts",
+			{
+				"account": row.expense_account,
+				"account_currency": company_currency,
+				"exchange_rate": 1,
+				"debit_in_account_currency": flt(row.base_amount),
+				"cost_center": cost_center,
+				"user_remark": row.description,
+			},
+		)
+
+		payable_account = get_party_account("Supplier", row.supplier, doc.company)
+		party_account_currency = get_party_account_currency("Supplier", row.supplier, doc.company)
+
+		credit_row = {
+			"account": payable_account,
+			"party_type": "Supplier",
+			"party": row.supplier,
+			"account_currency": party_account_currency,
+			"cost_center": cost_center,
+		}
+
+		if party_account_currency == row.currency:
+			credit_row["credit_in_account_currency"] = flt(row.amount)
+			credit_row["exchange_rate"] = flt(row.exchange_rate) or 1
+		elif party_account_currency == company_currency:
+			credit_row["credit_in_account_currency"] = flt(row.base_amount)
+			credit_row["exchange_rate"] = 1
+		else:
+			rate = (
+				get_exchange_rate(party_account_currency, company_currency, doc.posting_date) or 1
+			)
+			credit_row["credit_in_account_currency"] = flt(flt(row.base_amount) / rate, 9)
+			credit_row["exchange_rate"] = rate
+
+		je.append("accounts", credit_row)
+
+	if not je.get("accounts"):
+		return
+
+	je.flags.ignore_permissions = True
+	je.insert()
+	je.submit()
+
+	frappe.msgprint(
+		_("Поставщик қарздорлиги учун Journal Entry {0} яратилди.").format(
+			frappe.utils.get_link_to_form("Journal Entry", je.name)
+		),
+		indicator="green",
+		alert=True,
+	)
+
+
 def before_cancel(doc, method=None):
 	if not doc.get("custom_dop_rasxod"):
 		return
@@ -327,3 +426,13 @@ def before_cancel(doc, method=None):
 		if lcv.docstatus == 1:
 			lcv.flags.ignore_permissions = True
 			lcv.cancel()
+
+	# Dop-rasxod qarzdorlik-JE'sini ham PI bilan birga bekor qilamiz.
+	for je_name in frappe.get_all(
+		"Journal Entry",
+		filters={"custom_source_purchase_invoice": doc.name, "docstatus": 1},
+		pluck="name",
+	):
+		je = frappe.get_doc("Journal Entry", je_name)
+		je.flags.ignore_permissions = True
+		je.cancel()

@@ -50,6 +50,19 @@ def get_columns(filters):
     return cols
 
 
+def _as_list(value):
+    """MultiSelectList qiymatini ro'yxatga keltiradi (bo'sh -> [])."""
+    if not value:
+        return []
+    if isinstance(value, str):
+        try:
+            parsed = frappe.parse_json(value)
+        except Exception:
+            parsed = None
+        return parsed if isinstance(parsed, list) else [value]
+    return list(value)
+
+
 def get_data(filters):
     conditions = [
         "k.company = %(company)s",
@@ -67,24 +80,27 @@ def get_data(filters):
         conditions.append("k.docstatus = 1")
 
     for field in ("transaction_type", "party_type"):
-        if filters.get(field):
-            conditions.append(f"k.{field} = %({field})s")
-            values[field] = filters[field]
+        chosen = _as_list(filters.get(field))
+        if chosen:
+            conditions.append(f"k.{field} in %({field})s")
+            values[field] = chosen
 
-    if filters.get("mode_of_payment"):
+    mops = _as_list(filters.get("mode_of_payment"))
+    if mops:
         # transfer/konvertatsiyada maqsad kassa ham mos kelsin (qator-darajada
         # yakuniy filtr pastda)
-        conditions.append("(k.mode_of_payment = %(mode_of_payment)s or k.mode_of_payment_to = %(mode_of_payment)s)")
-        values["mode_of_payment"] = filters["mode_of_payment"]
+        conditions.append("(k.mode_of_payment in %(mops)s or k.mode_of_payment_to in %(mops)s)")
+        values["mops"] = mops
 
     if filters.get("party"):
         conditions.append("(k.party = %(party)s or k.party_name like %(party_like)s)")
         values["party"] = filters["party"]
         values["party_like"] = f"%{filters['party']}%"
 
-    if filters.get("currency"):
-        conditions.append("(k.cash_account_currency = %(currency)s or k.cash_account_to_currency = %(currency)s)")
-        values["currency"] = filters["currency"]
+    currencies = _as_list(filters.get("currency"))
+    if currencies:
+        conditions.append("(k.cash_account_currency in %(currencies)s or k.cash_account_to_currency in %(currencies)s)")
+        values["currencies"] = currencies
 
     rows = frappe.db.sql(f"""
         select k.name, k.date, time_format(k.time, '%%H:%%i') as time, k.docstatus, k.transaction_type,
@@ -179,9 +195,9 @@ def get_data(filters):
 
     # Qator-darajadagi yakuniy filtr: kassa/valyuta endi har qatorning
     # O'ZIGA qaraydi (transfer-kirim qatori ham to'g'ri topiladi).
-    if filters.get("mode_of_payment"):
-        data = [d for d in data if d["mode_of_payment"] == filters["mode_of_payment"]]
-    if filters.get("currency"):
-        data = [d for d in data if d["currency"] == filters["currency"]]
+    if mops:
+        data = [d for d in data if d["mode_of_payment"] in mops]
+    if currencies:
+        data = [d for d in data if d["currency"] in currencies]
 
     return data

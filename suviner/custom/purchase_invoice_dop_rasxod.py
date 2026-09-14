@@ -68,6 +68,20 @@ CUSTOM_FIELDS = {
 			"depends_on": "eval:doc.custom_dop_rasxod",
 		},
 	],
+	# Dop-rasxod qarzdorlik-JE'sini manba PI'ga bog'laydigan maydon (dashboard
+	# Connections'da ko'rinishi va bekor qilishda topish uchun).
+	"Journal Entry": [
+		{
+			"fieldname": "custom_source_purchase_invoice",
+			"label": "Purchase Invoice",
+			"fieldtype": "Link",
+			"options": "Purchase Invoice",
+			"insert_after": "user_remark",
+			"read_only": 1,
+			"no_copy": 1,
+			"print_hide": 1,
+		},
+	],
 	# LCV soliq-qatorini uni yaratgan Доп. расход qatoriga bog'laydigan iz —
 	# Sebestoimost reporti aynan qaysi rasxod qaysi tovarga qancha tushganini
 	# taxminlarsiz, avtoritativ ko'rsatishi uchun.
