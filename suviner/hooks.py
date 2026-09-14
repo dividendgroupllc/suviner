@@ -90,6 +90,10 @@ doctype_js = {
 # Fresh-installda patchlar "bajarilgan" deb belgilanadi — barcha maydon-
 # yaratuvchi executelarni after_install o'zi chaqiradi (suviner/install.py).
 after_install = "suviner.install.after_install"
+# HAR deploy'da barcha maydon-retseptlar idempotent qayta qo'llanadi —
+# endi maydon o'zgarishlari uchun alohida patch kerak emas (2026-09-14,
+# user qarori: "kodlarni tizimli qilaylik").
+after_migrate = "suviner.install.after_migrate"
 
 # Uninstallation
 # ------------

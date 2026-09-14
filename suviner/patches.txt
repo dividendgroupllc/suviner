@@ -12,3 +12,4 @@ suviner.patches.add_dop_rasxod_kurs_board
 suviner.patches.add_dop_rasxod_je_field
 suviner.patches.add_kassa_source_link
 suviner.patches.backfill_kassa_source_link
+suviner.patches.move_kassa_source_link
