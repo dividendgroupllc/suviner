@@ -155,6 +155,7 @@ class Kassa(Document):
 
         # Set reference to Kassa
         pe.reference_no = self.name
+        pe.custom_source_kassa = self.name
         pe.reference_date = self.date
         pe.remarks = self.remarks or f"Payment for {self.name}"
 
@@ -354,6 +355,7 @@ class Kassa(Document):
         je.posting_date = self.date
         je.company = self.company
         je.cheque_no = self.name
+        je.custom_source_kassa = self.name
         je.cheque_date = self.date
         je.user_remark = self.remarks or f"Dividend payment from {self.name}"
 
@@ -430,6 +432,7 @@ class Kassa(Document):
         je.posting_date = self.date
         je.company = self.company
         je.cheque_no = self.name
+        je.custom_source_kassa = self.name
         je.cheque_date = self.date
         je.user_remark = self.remarks or f"Expense payment from {self.name}"
 
@@ -501,6 +504,7 @@ class Kassa(Document):
 
         # Set reference to Kassa
         pe.reference_no = self.name
+        pe.custom_source_kassa = self.name
         pe.reference_date = self.date
         pe.remarks = self.remarks or f"Transfer from {self.name}"
 
@@ -533,6 +537,7 @@ class Kassa(Document):
         pe.target_exchange_rate = self.get_company_exchange_rate(to_currency)
 
         pe.reference_no = self.name
+        pe.custom_source_kassa = self.name
         pe.reference_date = self.date
         pe.remarks = self.remarks or f"Conversion from {self.name}"
 

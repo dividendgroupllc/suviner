@@ -10,8 +10,10 @@ chaqirishi shart (barchasi idempotent).
 
 
 def after_install():
+	from suviner.custom.kassa_source_link import execute as kassa_source_link_fields
 	from suviner.custom.party_balance_fields import execute as party_balance_fields
 	from suviner.custom.purchase_invoice_dop_rasxod import execute as dop_rasxod_fields
 
 	dop_rasxod_fields()
 	party_balance_fields()
+	kassa_source_link_fields()

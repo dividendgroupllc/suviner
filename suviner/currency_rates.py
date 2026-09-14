@@ -51,7 +51,9 @@ def get_latest_exchange_rates(company=None, date=None):
 		for r in rows
 	]
 
-	# Kompaniya valyutasiga tugaydiganlar oldinda, keyin alifbo bo'yicha.
-	rates.sort(key=lambda r: (r["to_currency"] != company_currency, r["from_currency"], r["to_currency"]))
+	# FAQAT DOLLAR KURSI (2026-09-14 user talabi aniqlashtirildi): taxtada
+	# kundalik kuzatiladigan yagona narsa — 1 USD = X UZS. Qolgan barcha
+	# juftliklar (RMB/AED/SAR va teskari yo'nalishlar) ko'rsatilmaydi.
+	rates = [r for r in rates if r["from_currency"] == "USD" and r["to_currency"] == "UZS"]
 
 	return {"company_currency": company_currency, "rates": rates}

@@ -813,3 +813,54 @@ function suviner_update_party_balance(frm) {
         },
     });
 }
+
+// ─── Dollar kursi taxtasi (Сумма yonida) ──────────────────────────────────
+// PI dop-rasxoddagi bilan bir xil manba: suviner.currency_rates —
+// hujjat sanasiga ko'ra 1 USD = X UZS. Kassir so'mda ishlaganda kursni
+// hujjatdan chiqmay ko'rib turadi.
+frappe.ui.form.on("Kassa", {
+    refresh(frm) {
+        suviner_kassa_kurs_board(frm);
+    },
+    date(frm) {
+        suviner_kassa_kurs_board(frm);
+    },
+});
+
+function suviner_kassa_kurs_board(frm) {
+    const field = frm.get_field("kurs_html");
+    if (!field) return;
+    const requested_date = frm.doc.date || frappe.datetime.get_today();
+    frappe.call({
+        method: "suviner.currency_rates.get_latest_exchange_rates",
+        args: { company: frm.doc.company, date: requested_date },
+        callback(r) {
+            const m = r.message;
+            if (!m || (frm.doc.date || frappe.datetime.get_today()) !== requested_date) return;
+            if (!m.rates.length) {
+                field.$wrapper.html(
+                    `<div class="text-muted" style="font-size:12px;">` +
+                    `Currency Exchange'да USD → UZS курс киритилмаган</div>`
+                );
+                return;
+            }
+            const rows = m.rates.map((x) => {
+                const rate = format_number(x.exchange_rate, null, x.exchange_rate >= 100 ? 2 : 4);
+                return `<tr>
+                    <td style="padding:3px 8px;font-weight:600;white-space:nowrap;">1 ${frappe.utils.escape_html(x.from_currency)}</td>
+                    <td style="padding:3px 4px;color:var(--text-muted);">=</td>
+                    <td style="padding:3px 8px;text-align:right;font-weight:600;white-space:nowrap;">${rate} ${frappe.utils.escape_html(x.to_currency)}</td>
+                    <td style="padding:3px 8px;color:var(--text-muted);font-size:11px;white-space:nowrap;">${frappe.datetime.str_to_user(x.date)}</td>
+                </tr>`;
+            }).join("");
+            field.$wrapper.html(
+                `<div style="border:1px solid var(--border-color);border-radius:8px;
+                        padding:8px 6px;background:var(--control-bg);display:inline-block;">
+                    <div style="font-size:11px;letter-spacing:.5px;text-transform:uppercase;
+                            color:var(--text-muted);padding:0 8px 6px;">Валюта курси — ${frappe.datetime.str_to_user(requested_date)}</div>
+                    <table style="border-collapse:collapse;font-size:13px;">${rows}</table>
+                </div>`
+            );
+        },
+    });
+}
