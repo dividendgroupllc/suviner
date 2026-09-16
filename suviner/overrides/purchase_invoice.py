@@ -253,7 +253,13 @@ def create_landed_cost_voucher(doc):
 			continue
 
 		basis = _effective_basis(doc, row)
-		alloc = _allocate(flt(row.base_amount), _item_weights(doc, basis))
+		# KANONIK summa — 2 kasrga yaxlitlangan bitta qiymat ham taqsimotga,
+		# ham LCV soliq-qatoriga boradi. Aks holda base_amount >2 kasr bilan
+		# saqlansa (USD-kompaniya, mayda kurslar) taqsimot 281.82, soliq
+		# 281.8195 bo'lib, LCV "Total Applicable Charges ... must be same as
+		# Total Taxes and Charges" bilan yiqiladi (2026-09-16 prod bug).
+		charge_total = flt(row.base_amount, 2)
+		alloc = _allocate(charge_total, _item_weights(doc, basis))
 		if alloc is None:
 			frappe.throw(
 				_("Доп-расход қатори #{0} ({1} усули): тақсимлаш вазнлари 0 — тақсимлаб бўлмайди.").format(
@@ -289,7 +295,7 @@ def create_landed_cost_voucher(doc):
 					if row.description
 					else f"{row.supplier} [{basis}]"
 				),
-				"amount": flt(row.base_amount),
+				"amount": charge_total,
 				"account_currency": company_currency,
 				"exchange_rate": 1,
 				# Sebestoimost reporti uchun aniq iz: qaysi rasxod-qatordan.
