@@ -7,7 +7,7 @@ shakllanganini ikir-chikirigacha ko'rsatadi (daraxt-ko'rinish):
   📦 Tovar (hujjat, miqdor, kg, YAKUNIY tannarx, 1 dona narxi)
      ↳ Харид нархи (асос)
      ↳ Валюация солиғи (bo'lsa)
-     ↳ har bir Доп. расход komponenti: ta'minotchi, usul (Qty/Amount/Kg),
+     ↳ har bir Доп. расход komponenti: ta'minotchi, usul (Qty/Amount/Kg/Manually),
        tovar ulushi %, summa, 1 donaga to'g'ri kelgani
 
 MANBA — taxmin emas, avtoritativ hujjatlar:
@@ -32,7 +32,7 @@ from frappe import _
 from frappe.utils import flt
 
 
-BASIS_RE = re.compile(r"\[(Qty|Amount|Kg)\]\s*$")
+BASIS_RE = re.compile(r"\[(Qty|Amount|Kg|Manually)\]\s*$")
 
 
 def execute(filters=None):

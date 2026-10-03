@@ -29,11 +29,11 @@ CUSTOM_FIELDS = {
 			"fieldname": "custom_distribute_charges_based_on",
 			"label": "Распределение расходов (по умолчанию)",
 			"fieldtype": "Select",
-			"options": "Qty\nAmount\nKg",
+			"options": "Qty\nAmount\nKg\nManually",
 			"default": "Amount",
 			"insert_after": "custom_dop_rasxod_section",
 			"depends_on": "eval:doc.custom_dop_rasxod",
-			"description": "Ишлатилади, агар харажат қаторида ўз усули танланмаган бўлса. Kg — товар оғирлиги бўйича (Кг × Кол-во).",
+			"description": "Ишлатилади, агар харажат қаторида ўз усули танланмаган бўлса. Kg — товар оғирлиги бўйича (Кг × Кол-во). Manually — ҳар қатор учун товар улушлари қўлда киритилади.",
 		},
 		{
 			# Taqsimlash-usuli tanlovining o'ng yonidagi bo'sh joy uchun.

@@ -15,15 +15,17 @@ Purchase Invoice "Доп. расход" (Landed Cost) oqimi.
              (back-link tekshiruvidan oldin ishlaydi).
 
 Taqsimlash usuli (har qator uchun alohida, bo'sh bo'lsa hujjatdagi umumiy usul):
-  Qty    — miqdor (qty) nisbatida
-  Amount — baza summasi nisbatida
-  Kg     — og'irlik nisbatida: weight_per_unit ("Кг (за ед.)") × stock_qty
+  Qty      — miqdor (qty) nisbatida
+  Amount   — baza summasi nisbatida
+  Kg       — og'irlik nisbatida: weight_per_unit ("Кг (за ед.)") × stock_qty
+  Manually — har tovar ulushi qo'lda (qatorning manual_distribution maydoni,
+             qator valyutasida); faqat qator darajasida tanlanadi
 Yaxlitlash: eng katta qoldiq usuli — qator summasi tiyingacha aniq taqsimlanadi.
 """
 
 import frappe
 from frappe import _
-from frappe.utils import flt
+from frappe.utils import cint, flt
 from erpnext.accounts.party import get_party_account, get_party_account_currency
 from erpnext.setup.utils import get_exchange_rate
 
@@ -47,7 +49,7 @@ def _has_dop_rasxod(doc):
 def _effective_basis(doc, row):
 	"""Qator uchun amaldagi taqsimlash usuli: qatorniki, bo'lmasa hujjatniki."""
 	basis = row.get("distribute_based_on") or doc.get("custom_distribute_charges_based_on") or "Amount"
-	if basis not in ("Qty", "Amount", "Kg"):
+	if basis not in ("Qty", "Amount", "Kg", "Manually"):
 		# Eski hujjatlarda "Distribute Manually" saqlanib qolgan bo'lishi mumkin.
 		basis = "Amount"
 	return basis
@@ -89,6 +91,77 @@ def _item_weights(doc, basis):
 		else:  # Amount
 			weights[it.name] = flt(it.base_amount) or flt(it.base_net_amount)
 	return weights
+
+
+def _manual_weights(doc, row):
+	"""Manually-qator ulushlari: ({PI item row name: summa}, muammolar ro'yxati).
+
+	manual_distribution — JSON [{idx, item_code, amount}], summa qator valyutasida.
+	Kalit row name EMAS, idx + item_code: amend/dublikatda child name'lar
+	yangilanadi, idx va item_code esa saqlanadi; tovar qatorlari surilsa yoki
+	o'chirilsa item_code mos kelmay qoladi va taqsimot eskirgan deb topiladi.
+	Summalar _allocate'ga VAZN sifatida beriladi — kompaniya valyutasiga
+	o'tkazish va tiyin-yaxlitlash qolgan usullardagi bilan bir xil.
+	"""
+	try:
+		entries = frappe.parse_json(row.get("manual_distribution") or "[]") or []
+	except Exception:
+		entries = []
+	if not isinstance(entries, list):
+		entries = []
+
+	eligible = {cint(it.idx): it for it in _lcv_eligible_items(doc)}
+	weights, problems = {}, []
+	for entry in entries:
+		if not isinstance(entry, dict):
+			continue
+		amount = flt(entry.get("amount"))
+		if not amount:
+			continue
+		it = eligible.get(cint(entry.get("idx")))
+		if not it or it.item_code != entry.get("item_code"):
+			problems.append(
+				_("#{0} {1} товар қатори топилмади (қаторлар ўзгарган)").format(
+					entry.get("idx"), entry.get("item_code") or ""
+				)
+			)
+			continue
+		if amount < 0:
+			problems.append(_("#{0} {1}: манфий сумма").format(it.idx, it.item_code))
+			continue
+		weights[it.name] = flt(weights.get(it.name)) + amount
+	return weights, problems
+
+
+def _validate_manual_rows(doc, strict):
+	"""Manually-qatorlar: taqsimot bor, tovar qatorlari mos va jami = qator summasi.
+
+	strict=False (draft saqlash) — ogohlantirish; strict=True (submit) — frappe.throw.
+	"""
+	for row in doc.get("custom_dop_rasxod_items") or []:
+		if _effective_basis(doc, row) != "Manually" or not flt(row.amount):
+			continue
+
+		weights, problems = _manual_weights(doc, row)
+		precision = row.precision("amount") or 2
+		total = flt(sum(weights.values()), precision)
+		if not weights and not problems:
+			problems.append(_("товарлар бўйича тақсимот киритилмаган"))
+		elif flt(total - flt(row.amount, precision), precision):
+			problems.append(
+				_("тақсимланган {0}, қатор суммаси {1} — тенг бўлиши керак").format(
+					total, flt(row.amount, precision)
+				)
+			)
+		if not problems:
+			continue
+
+		message = _("Доп-расход қатори #{0} (қўлда тақсимлаш): {1}. «Распределить вручную» орқали тўғриланг.").format(
+			row.idx, "; ".join(problems)
+		)
+		if strict:
+			frappe.throw(message)
+		frappe.msgprint(message, indicator="orange", alert=True)
 
 
 def _allocate(total, weights, precision=2):
@@ -206,6 +279,7 @@ def validate(doc, method=None):
 	# Submit paytida validate docstatus=1 bilan ishlaydi — Kg tekshiruvi shunda
 	# qat'iy bo'ladi (Kassa saboqlari: docstatus o'zgarishidan OLDIN tekshirish).
 	_validate_kg_rows(doc, strict=(doc.docstatus == 1))
+	_validate_manual_rows(doc, strict=(doc.docstatus == 1))
 
 
 def on_submit(doc, method=None):
@@ -259,7 +333,8 @@ def create_landed_cost_voucher(doc):
 		# 281.8195 bo'lib, LCV "Total Applicable Charges ... must be same as
 		# Total Taxes and Charges" bilan yiqiladi (2026-09-16 prod bug).
 		charge_total = flt(row.base_amount, 2)
-		alloc = _allocate(charge_total, _item_weights(doc, basis))
+		weights = _manual_weights(doc, row)[0] if basis == "Manually" else _item_weights(doc, basis)
+		alloc = _allocate(charge_total, weights)
 		if alloc is None:
 			frappe.throw(
 				_("Доп-расход қатори #{0} ({1} усули): тақсимлаш вазнлари 0 — тақсимлаб бўлмайди.").format(

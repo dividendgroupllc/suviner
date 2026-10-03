@@ -229,29 +229,23 @@ class Kassa(Document):
         if self.party_type in ["Customer", "Supplier"]:
             return erpnext_get_party_account(self.party_type, self.party, self.company)
 
-        if self.party_type == "Shareholder":
-            # ERPNext Party Type ro'yxatida Shareholder = Payable; kompaniya
-            # defaulti bo'lmasa Employee'dagi kabi Payable-zanjirga tushamiz.
+        if self.party_type in ["Shareholder", "Employee"]:
+            # ERPNext Party Type ro'yxatida ikkalasi ham Payable — yadro qoidasi:
+            # kartochkadagi Party Account → mavjud GL valyutasi → kompaniyaning
+            # default_payable_account (Creditors). 2026-10-03: Employee ilgari
+            # default_payroll_payable_account'ga tushardi — u faqat HRMS ish haqi
+            # hisoblash uchun, saytda o'chirilgan bo'lishi mumkin («Disabled
+            # Account Selected»), kontragent qoldig'i (party_balance) esa
+            # Creditors'dan o'qirdi — qoldiq va to'lov boshqa-boshqa hisobda edi.
             try:
                 account = erpnext_get_party_account(self.party_type, self.party, self.company)
-                if account:
-                    return account
             except Exception:
-                pass
+                account = None
+            if account and not cint(frappe.get_cached_value("Account", account, "disabled")):
+                return account
             account = self._fallback_payable_account()
             if account:
                 return account
-
-        if self.party_type == "Employee":
-            # 2026-08-31 audit: ilgari DUCH KELGAN birinchi Payable olinardi
-            # (valyuta/tur filtrisiz). Endi ustuvorlik: kompaniyaning payroll
-            # payable defaulti → hujjat/partiya valyutasiga mos Payable →
-            # oxirgi zaxira sifatida istalgan Payable.
-            payable_account = frappe.get_cached_value(
-                "Company", self.company, "default_payroll_payable_account"
-            ) or self._fallback_payable_account()
-            if payable_account:
-                return payable_account
 
         frappe.throw(_("Не удалось определить счет контрагента для {0}").format(self.party_type))
 
@@ -267,12 +261,13 @@ class Kassa(Document):
                 "company": self.company,
                 "account_type": "Payable",
                 "is_group": 0,
+                "disabled": 0,
                 "account_currency": doc_currency,
             },
             "name",
         ) or frappe.db.get_value(
             "Account",
-            {"company": self.company, "account_type": "Payable", "is_group": 0},
+            {"company": self.company, "account_type": "Payable", "is_group": 0, "disabled": 0},
             "name",
         )
 
@@ -911,11 +906,9 @@ def get_party_currency(party_type, party, company):
         if not currency:
             currency = frappe.get_cached_value("Company", company, "default_currency")
     elif party_type == "Employee":
-        account = frappe.db.get_value(
-            "Account",
-            {"company": company, "account_type": "Payable", "is_group": 0},
-            "name"
-        )
+        # Kassa.get_party_account bilan bir xil manba (ilgari birinchi duch
+        # kelgan Payable olinardi — valyuta to'lov hisobinikidan farq qilardi).
+        account = erpnext_get_party_account(party_type, party, company)
         if account:
             currency = frappe.get_cached_value("Account", account, "account_currency")
         if not currency:

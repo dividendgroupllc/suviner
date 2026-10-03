@@ -148,3 +148,193 @@ function suviner_pi_kassa_button(frm) {
         });
     }, __("Create"));
 }
+
+// ─── Доп. расход: qo'lda taqsimlash (Manually) ────────────────────────────
+// Qatorda «Manually» tanlanganda (yoki qator formidagi «Распределить вручную»
+// tugmasi) har tovar ulushi kiritiladigan oyna ochiladi. Natija qatorning
+// yashirin manual_distribution maydoniga JSON bo'lib yoziladi:
+// [{idx, item_code, amount}] — summa qator valyutasida. Server
+// (overrides/purchase_invoice.py::_manual_weights) shu bo'yicha LCV qiladi.
+// Umumiy usul («по умолчанию») Manually bo'lsa, usuli bo'sh qatorlar ham
+// qo'lda taqsimlanadi (server _effective_basis bilan bir xil qoida).
+frappe.ui.form.on("Suviner Dop Rasxod", {
+    distribute_based_on(frm, cdt, cdn) {
+        const row = locals[cdt][cdn];
+        if (row.distribute_based_on === "Manually") {
+            suviner_manual_distribution_dialog(frm, row);
+        }
+        frm.fields_dict.custom_dop_rasxod_items.grid.refresh();
+    },
+    amount(frm, cdt, cdn) {
+        // Umumiy usul Manually bo'lib, qator summasi endi kiritilgan bo'lsa —
+        // taqsimot oynasini o'zi ochamiz (faqat hali taqsimlanmagan qator uchun).
+        const row = locals[cdt][cdn];
+        if (!row.distribute_based_on && suviner_is_manual_row(frm, row)
+            && flt(row.amount) && !row.manual_distribution) {
+            suviner_manual_distribution_dialog(frm, row);
+        }
+    },
+    manual_distribution_btn(frm, cdt, cdn) {
+        suviner_manual_distribution_dialog(frm, locals[cdt][cdn]);
+    },
+});
+
+frappe.ui.form.on("Purchase Invoice", {
+    custom_distribute_charges_based_on(frm) {
+        frm.fields_dict.custom_dop_rasxod_items.grid.refresh();
+        if (frm.doc.custom_distribute_charges_based_on !== "Manually") return;
+        // Summasi bor, lekin hali taqsimlanmagan qatorlar uchun oynalar ketma-ket.
+        const pending = (frm.doc.custom_dop_rasxod_items || []).filter(
+            (r) => suviner_is_manual_row(frm, r) && flt(r.amount) && !r.manual_distribution
+        );
+        const open_next = () => {
+            const row = pending.shift();
+            if (row) suviner_manual_distribution_dialog(frm, row, open_next);
+        };
+        open_next();
+    },
+});
+
+function suviner_is_manual_row(frm, row) {
+    return (row.distribute_based_on || frm.doc.custom_distribute_charges_based_on) === "Manually";
+}
+
+function suviner_manual_distribution_dialog(frm, row, on_close) {
+    const items = (frm.doc.items || []).filter((it) => it.item_code);
+    if (!items.length) {
+        frappe.msgprint(__("Аввал товарларни киритинг."));
+        return;
+    }
+    const codes = [...new Set(items.map((it) => it.item_code))];
+    // LCV'ga faqat stock / asosiy vosita tovarlar kiradi (server
+    // _lcv_eligible_items bilan bir xil filtr) — xizmatlarga ulush berilmaydi.
+    frappe.db.get_list("Item", {
+        filters: { name: ["in", codes] },
+        fields: ["name", "is_stock_item", "is_fixed_asset"],
+        limit: codes.length,
+    }).then((flags) => {
+        const ok = new Set(flags.filter((f) => f.is_stock_item || f.is_fixed_asset).map((f) => f.name));
+        const eligible = items.filter((it) => ok.has(it.item_code));
+        if (!eligible.length) {
+            frappe.msgprint(__("Тақсимлаш учун омбор (stock) товари йўқ."));
+            return;
+        }
+        suviner_open_manual_distribution_dialog(frm, row, eligible, on_close);
+    });
+}
+
+function suviner_open_manual_distribution_dialog(frm, row, eligible, on_close) {
+    const precision = precision_of_row_amount(row);
+    const currency = row.currency || "";
+    const read_only = frm.doc.docstatus !== 0;
+    // Qator summasi bo'sh bo'lsa (Распределение Сумма'dan oldin turadi) —
+    // kiritilgan jami qator summasiga yoziladi; bo'lmasa jami unga teng bo'lishi shart.
+    const target = flt(row.amount, precision);
+
+    let saved = [];
+    try {
+        saved = JSON.parse(row.manual_distribution || "[]") || [];
+    } catch (e) {
+        saved = [];
+    }
+    const saved_by_key = {};
+    for (const e of saved) saved_by_key[`${e.idx}|${e.item_code}`] = flt(e.amount);
+
+    const data = eligible.map((it) => ({
+        item_idx: it.idx,
+        item_code: it.item_code,
+        item_label: it.item_name && it.item_name !== it.item_code
+            ? `${it.item_code}: ${it.item_name}` : it.item_code,
+        qty: flt(it.qty),
+        base_amount: flt(it.base_amount),
+        amount: saved_by_key[`${it.idx}|${it.item_code}`] || 0,
+    }));
+
+    const total_of = () => flt(data.reduce((s, d) => s + flt(d.amount), 0), precision);
+    const fmt = (v) => `${format_number(v, null, precision)} ${frappe.utils.escape_html(currency)}`;
+
+    const dialog = new frappe.ui.Dialog({
+        title: __("Распределение вручную — {0}", [frappe.utils.escape_html(row.description || row.supplier || "")]),
+        size: "large",
+        fields: [
+            { fieldtype: "HTML", fieldname: "summary" },
+            {
+                fieldtype: "Table",
+                fieldname: "items",
+                cannot_add_rows: true,
+                cannot_delete_rows: true,
+                in_place_edit: true,
+                data: data,
+                get_data: () => data,
+                fields: [
+                    { fieldtype: "Int", fieldname: "item_idx", label: "№", read_only: 1, in_list_view: 1, columns: 1 },
+                    { fieldtype: "Data", fieldname: "item_label", label: __("Товар"), read_only: 1, in_list_view: 1, columns: 4 },
+                    { fieldtype: "Float", fieldname: "qty", label: __("Кол-во"), read_only: 1, in_list_view: 1, columns: 1 },
+                    { fieldtype: "Currency", fieldname: "base_amount", label: __("Сумма товара (баз.)"), read_only: 1, in_list_view: 1, columns: 2 },
+                    {
+                        fieldtype: "Float",
+                        fieldname: "amount",
+                        label: __("Доп. расход ({0})", [currency]),
+                        precision: precision,
+                        read_only: read_only ? 1 : 0,
+                        in_list_view: 1,
+                        columns: 2,
+                        onchange: () => render_summary(),
+                    },
+                ],
+            },
+        ],
+        primary_action_label: read_only ? __("Закрыть") : __("Сохранить"),
+        primary_action() {
+            if (read_only) {
+                dialog.hide();
+                return;
+            }
+            const total = total_of();
+            if (data.some((d) => flt(d.amount) < 0)) {
+                frappe.msgprint(__("Манфий сумма киритиш мумкин эмас."));
+                return;
+            }
+            if (target && flt(total - target, precision)) {
+                frappe.msgprint(__("Тақсимланган жами {0}, қатор суммаси {1} — тенг бўлиши керак.", [fmt(total), fmt(target)]));
+                return;
+            }
+            const entries = data
+                .filter((d) => flt(d.amount))
+                .map((d) => ({ idx: d.item_idx, item_code: d.item_code, amount: flt(d.amount, precision) }));
+            frappe.model.set_value(row.doctype, row.name, "manual_distribution",
+                entries.length ? JSON.stringify(entries) : "");
+            if (!target && total) {
+                frappe.model.set_value(row.doctype, row.name, "amount", total);
+            }
+            dialog.hide();
+        },
+    });
+
+    function render_summary() {
+        const total = total_of();
+        const diff = flt(target - total, precision);
+        const target_html = target
+            ? `${__("Қатор суммаси")}: <b>${fmt(target)}</b> · ${__("Тақсимланди")}: <b>${fmt(total)}</b> · ` +
+              `<span style="color:${diff ? "var(--red-500)" : "var(--green-500)"};font-weight:600;">` +
+              `${__("Қолди")}: ${fmt(diff)}</span>`
+            : `${__("Тақсимланди")}: <b>${fmt(total)}</b> ` +
+              `<span class="text-muted">(${__("қатор суммаси бўш — жами унга ёзилади")})</span>`;
+        dialog.fields_dict.summary.$wrapper.html(
+            `<div style="padding:8px 10px;border:1px solid var(--border-color);border-radius:8px;
+                    background:var(--control-bg);font-size:13px;">${target_html}</div>`
+        );
+    }
+
+    // Ketma-ket ochish (umumiy usul Manually'ga o'tganda) — yopilgach keyingisi.
+    if (on_close) dialog.onhide = on_close;
+    dialog.fields_dict.items.grid.grid_buttons.hide();
+    render_summary();
+    dialog.show();
+}
+
+function precision_of_row_amount(row) {
+    return cint(frappe.meta.get_field_precision(
+        frappe.meta.get_docfield(row.doctype, "amount", row.name), row
+    )) || 2;
+}
